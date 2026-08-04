@@ -1,0 +1,181 @@
+Модули:
+
+- Менеджер проектов:
+Отвечает за создание проектов, выдачу project_key для SDK
+POST  /api/v1/projects - создать проект
+GET   /api/v1/projects - получить список проектов
+GET   /api/v1/projects/{projectId} - получить конкретный проект
+PATCH /api/v1/projects/{projectId} - изменить проект
+GET    /api/v1/projects/{projectId}/elements - получить список элементов страницы
+POST   /api/v1/projects/{projectId}/elements - добавить элемент
+PATCH  /api/v1/projects/{projectId}/elements/{elementId} - изменить элемент
+DELETE /api/v1/projects/{projectId}/elements/{elementId} - удалить элемент
+
+- Менеджер сценариев:
+Отвечает за создание, удаление, редактирование, отключение и включение сценариев.
+Также за создание, удаление и редактирование шагов
+POST   /api/v1/projects/{projectId}/scenarios - создать сценарий
+GET    /api/v1/projects/{projectId}/scenarios - получить список сценариев для конкретного проекта
+GET    /api/v1/scenarios/{scenarioId} = получить конкретный сценарий
+PATCH  /api/v1/scenarios/{scenarioId} - изменить сценарий
+DELETE /api/v1/scenarios/{scenarioId} - удалить сценарий
+POST   /api/v1/scenarios/{scenarioId}/publish - публиковать сценарий
+POST   /api/v1/scenarios/{scenarioId}/enable  - включить сценарий
+POST   /api/v1/scenarios/{scenarioId}/disable - выключить сценарий
+GET    /api/v1/scenarios/{scenarioId}/preview - получить конфигурацию для тестовой сборки
+POST   /api/v1/scenarios/{scenarioId}/steps - создать шаг
+PATCH  /api/v1/scenarios/{scenarioId}/steps/{stepId} - изменить шаг
+DELETE /api/v1/scenarios/{scenarioId}/steps/{stepId} - удалить шаг
+PUT    /api/v1/scenarios/{scenarioId}/steps/order = изменить порядок шагов
+
+- PDF report:
+Отвечает за генерацию PDF отчета для администратора
+GET   /api/v1/scenarios/{scenarioId}/report/pdf - получить PDF отчет по сценарию
+
+- Analytics:
+Отвечает зя сбор метрик из базы данных и формирование аналитики
+GET   /api/v1/projects/{projectId}/analytics/total     - получить общую аналитику по проекту
+GET   /api/v1/scenarios/{scenarioId}/analytics/total    - получить общую аналитику по сценарию
+GET   /api/v1/scenarios/{scenarioId}/analytics/detailed - получить подробную аналитику по шагам
+
+- Runtime:
+Отвечает за общение с SDK. SDK присылает (проект, страницу и id пользователя),
+runtime ищет подходящий сценарий и отправляет в ответе.
+POST   /api/v1/sdk/scenarios/resolve - получить возможный сценарий для страницы
+
+- Tracking:
+Отвечает за получение events от SDK. При действиях пользователя в сценарии SDK отправляет данные привязанные
+к сессии. После эти данный будут использоваться для аналитики.
+POST   /api/v1/sdk/sessions - создать сессию прохождения сценария
+POST   /api/v1/sdk/events   - сохранить событие прохождения сценария
+
+
+
+Сущности:
+
+- Element
+ - ID
+ - ProjectID
+ - Key
+ - Label
+ - Description
+ - Created_at
+ - Updated_at
+
+- Project
+ - ID
+ - Name
+ - project_key
+ - created_at
+ - updated_at
+
+- Scenario
+ - ID
+ - ProjectID
+ - Name
+ - Description
+ - PagePattern
+ - Status  ('enabled', 'in_development', 'disabled')
+ - PublishedAt
+ - Created_at
+ - Updated_at
+ - Deleted_at
+
+- Step
+ - ID
+ - ScenarioID
+ - StepNum
+ - Title
+ - Description
+ - elementID
+ - Информация для фронта
+ - Created_at
+ - Updated_at
+ - Deleted_at
+
+- OnboardingSession
+ - ID
+ - ScenarioID
+ - UserID
+ - Status ('active', 'completed', 'skipped')
+ - Started_at
+ - Finished_at
+
+- OnboardingEvent
+ - ID
+ - SessionID
+ - StepID
+ - Type ('step_shown', 'step_completed', 'step_skipped', 'onboarding_completed', 'onboarding_skipped')
+ - Data
+ - Occurred_at
+ - Received_at
+
+- AnalyticsPeriod
+  - From
+  - To
+
+- ProjectAnalytics
+  - ProjectID
+  - TotalScenarios    - количество неудалённых сценариев проекта
+  - EnabledScenarios  - количество сценариев в статусе enabled
+  - SessionsStarted   - количество созданных сессий
+  - SessionsCompleted - количество сессий со статусом completed
+  - SessionsSkipped   - количество сессий со статусом skipped
+  - CompletionRate    - SessionsCompleted / SessionsStarted
+  - SkipRate          - SessionsSkipped / SessionsStarted
+
+- ScenarioAnalytics
+  - ScenarioID
+  - Started                      - количество созданных сессий сценария
+  - Completed                    - количество завершённых сессий
+  - Skipped                      - количество явно пропущенных онбордингов
+  - CompletionRate               - Completed / Started
+  - SkipRate                     - Skipped / Started
+  - AverageCompletionTimeSeconds - средняя длительность завершённых сессий
+
+- StepAnalytics
+  - StepID
+  - Position
+  - Title
+  - Shown           - количество сессий, в которых SDK показал шаг
+  - Completed       - количество сессий, в которых шаг выполнили
+  - Skipped         - количество сессий, в которых шаг явно пропустили
+  - CompletionRate  - Completed / Shown
+  - SkipRate        - Skipped / Shown
+  - DropOffRate     - доля пользователей, увидевших текущий шаг, но не дошедших до следующего
+
+- DetailedScenarioAnalytics
+  - Встроенные поля ScenarioAnalytics - Аналитика сценария
+  - Steps                             - Аналитика для каждого шага (массив StepAnalytics)
+
+
+
+Структура проекта:
+- cmd/app
+- internal/
+  - app/app.go
+  - config/config.go
+  - project/...
+  - scenario/...
+  - runtime/
+    - entity
+    - errors
+    - service
+    - http/
+      - handlers/...
+    - repository/...
+  - tracking/...
+  - analytics/...
+  - pdf_report/...
+  - platform/
+    - httpserver/
+      - server
+      - router
+    - middleware/...
+- migrations/...
+- tests/
+ - integration_tests/...
+- openapi.yaml
+- docker-compose.yaml
+- DockerFile
+- .golangci.yaml
