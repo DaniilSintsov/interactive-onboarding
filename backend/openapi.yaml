@@ -1,0 +1,1746 @@
+openapi: 3.0.3
+info:
+  title: Interactive Onboarding API
+  version: 0.4.0
+  description: 'API MVP-платформы интерактивного онбординга: управление проектами, элементами интерфейса, сценариями
+    и шагами, Runtime API для SDK, Tracking, аналитика и PDF-отчёты.'
+servers:
+  - url: http://localhost:8080
+    description: Локальное окружение
+tags:
+  - name: Projects
+    description: Управление проектами.
+  - name: Elements
+    description: Управление элементами интерфейса.
+  - name: Scenarios
+    description: Создание, настройка и управление состоянием сценариев.
+  - name: Steps
+    description: Управление шагами сценария и порядком их прохождения.
+  - name: Runtime
+    description: Поиск и выдача подходящего сценария для SDK.
+  - name: Tracking
+    description: Создание сессий и приём событий прохождения от SDK.
+  - name: Analytics
+    description: Агрегированная аналитика по проектам, сценариям и шагам.
+  - name: Reports
+    description: Формирование PDF-отчётов на основе аналитики.
+paths:
+
+  # ============================================================================
+  # Projects
+  # ============================================================================
+  /api/v1/projects:
+    post:
+      tags:
+        - Projects
+      operationId: createProject
+      summary: Создать проект
+      security:
+        - AdminBearer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateProjectRequest'
+      responses:
+        '201':
+          description: Проект создан
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectWithElements'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+      description: Создаёт проект, выдаёт project_key и сохраняет первоначальный список элементов интерфейса.
+    get:
+      tags:
+        - Projects
+      operationId: listProjects
+      summary: Получить список проектов
+      security:
+        - AdminBearer: []
+      parameters:
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Offset'
+      responses:
+        '200':
+          description: Список проектов
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+      description: Возвращает проекты с пагинацией через параметры limit и offset.
+  /api/v1/projects/{projectId}:
+    parameters:
+      - $ref: '#/components/parameters/ProjectId'
+    get:
+      tags:
+        - Projects
+      operationId: getProject
+      summary: Получить проект
+      security:
+        - AdminBearer: []
+      responses:
+        '200':
+          description: Проект найден
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectWithElements'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+      description: Возвращает проект вместе с его элементами интерфейса.
+    patch:
+      tags:
+        - Projects
+      operationId: updateProject
+      summary: Изменить проект
+      security:
+        - AdminBearer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateProjectRequest'
+      responses:
+        '200':
+          description: Проект обновлён
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectWithElements'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+      description: Частично изменяет настройки проекта.
+
+  # ============================================================================
+  # Elements
+  # ============================================================================
+  /api/v1/projects/{projectId}/elements:
+    parameters:
+      - $ref: '#/components/parameters/ProjectId'
+    get:
+      tags:
+        - Elements
+      operationId: listProjectElements
+      summary: Получить полный список элементов проекта
+      security:
+        - AdminBearer: []
+      responses:
+        '200':
+          description: Список элементов проекта
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Element'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+      description: Возвращает все элементы проекта одним массивом без пагинации. Список используется при выборе целевого
+        элемента для шага сценария.
+    post:
+      tags:
+        - Elements
+      operationId: createProjectElement
+      summary: Добавить элемент в проект
+      security:
+        - AdminBearer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateElementInput'
+      responses:
+        '201':
+          description: Элемент создан
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Element'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+      description: Создаёт новый элемент интерфейса в указанном проекте.
+  /api/v1/projects/{projectId}/elements/{elementId}:
+    parameters:
+      - $ref: '#/components/parameters/ProjectId'
+      - $ref: '#/components/parameters/ElementId'
+    patch:
+      tags:
+        - Elements
+      operationId: updateProjectElement
+      summary: Изменить элемент проекта
+      security:
+        - AdminBearer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateElementRequest'
+      responses:
+        '200':
+          description: Элемент обновлён
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Element'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+      description: Частично изменяет данные элемента интерфейса.
+    delete:
+      tags:
+        - Elements
+      operationId: deleteProjectElement
+      summary: Удалить элемент проекта
+      description: Удаляет элемент, если на него не ссылается ни один шаг сценария.
+      security:
+        - AdminBearer: []
+      responses:
+        '204':
+          description: Элемент удалён
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+
+  # ============================================================================
+  # Scenarios
+  # ============================================================================
+  /api/v1/projects/{projectId}/scenarios:
+    parameters:
+      - $ref: '#/components/parameters/ProjectId'
+    post:
+      tags:
+        - Scenarios
+      operationId: createScenario
+      summary: Создать сценарий
+      security:
+        - AdminBearer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateScenarioRequest'
+      responses:
+        '201':
+          description: Сценарий создан
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Scenario'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+      description: Создаёт сценарий в статусе in_development.
+    get:
+      tags:
+        - Scenarios
+      operationId: listScenarios
+      summary: Получить список сценариев проекта
+      security:
+        - AdminBearer: []
+      parameters:
+        - name: status
+          in: query
+          required: false
+          schema:
+            $ref: '#/components/schemas/ScenarioStatus'
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Offset'
+      responses:
+        '200':
+          description: Список сценариев
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ScenarioListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+      description: Возвращает сценарии проекта с фильтрацией по статусу и пагинацией.
+  /api/v1/scenarios/{scenarioId}:
+    parameters:
+      - $ref: '#/components/parameters/ScenarioId'
+    get:
+      tags:
+        - Scenarios
+      operationId: getScenario
+      summary: Получить сценарий
+      security:
+        - AdminBearer: []
+      responses:
+        '200':
+          description: Сценарий найден
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ScenarioWithSteps'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+      description: Возвращает сценарий вместе с упорядоченным списком шагов.
+    patch:
+      tags:
+        - Scenarios
+      operationId: updateScenario
+      summary: Изменить сценарий
+      description: Изменение разрешено для сценариев в статусах in_development и disabled. Сценарий в статусе enabled
+        изменять нельзя.
+      security:
+        - AdminBearer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateScenarioRequest'
+      responses:
+        '200':
+          description: Сценарий обновлён
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Scenario'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+    delete:
+      tags:
+        - Scenarios
+      operationId: deleteScenario
+      summary: Удалить сценарий
+      security:
+        - AdminBearer: []
+      responses:
+        '204':
+          description: Сценарий мягко удалён
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+      description: Мягко удаляет сценарий в любом статусе. Удалённый сценарий перестаёт возвращаться в списках и Runtime,
+        но исторические сессии, события и аналитика сохраняются.
+  /api/v1/scenarios/{scenarioId}/publish:
+    parameters:
+      - $ref: '#/components/parameters/ScenarioId'
+    post:
+      tags:
+        - Scenarios
+      operationId: publishScenario
+      summary: Опубликовать сценарий
+      description: Проверяет конфигурацию и переводит сценарий из in_development в enabled.
+      security:
+        - AdminBearer: []
+      responses:
+        '200':
+          description: Сценарий опубликован
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Scenario'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+  /api/v1/scenarios/{scenarioId}/enable:
+    parameters:
+      - $ref: '#/components/parameters/ScenarioId'
+    post:
+      tags:
+        - Scenarios
+      operationId: enableScenario
+      summary: Включить сценарий
+      security:
+        - AdminBearer: []
+      responses:
+        '200':
+          description: Сценарий включён
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Scenario'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+      description: Повторно проверяет конфигурацию и переводит сценарий из disabled в enabled.
+  /api/v1/scenarios/{scenarioId}/disable:
+    parameters:
+      - $ref: '#/components/parameters/ScenarioId'
+    post:
+      tags:
+        - Scenarios
+      operationId: disableScenario
+      summary: Выключить сценарий
+      security:
+        - AdminBearer: []
+      responses:
+        '200':
+          description: Сценарий выключен
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Scenario'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+      description: Переводит сценарий из enabled в disabled. После выключения сценарий не выдаётся Runtime и может быть
+        отредактирован.
+  /api/v1/scenarios/{scenarioId}/preview:
+    parameters:
+      - $ref: '#/components/parameters/ScenarioId'
+    get:
+      tags:
+        - Scenarios
+      operationId: previewScenario
+      summary: Получить конфигурацию сценария для предпросмотра
+      description: Возвращает SDK-совместимую конфигурацию без создания tracking-сессии.
+      security:
+        - AdminBearer: []
+      responses:
+        '200':
+          description: Конфигурация для предпросмотра
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RuntimeScenario'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  # ============================================================================
+  # Steps
+  # ============================================================================
+  /api/v1/scenarios/{scenarioId}/steps:
+    parameters:
+      - $ref: '#/components/parameters/ScenarioId'
+    post:
+      tags:
+        - Steps
+      operationId: createStep
+      summary: Создать шаг сценария
+      security:
+        - AdminBearer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateStepRequest'
+      responses:
+        '201':
+          description: Шаг создан
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Step'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+      description: Создание разрешено для сценариев в статусах in_development и disabled.
+  /api/v1/scenarios/{scenarioId}/steps/{stepId}:
+    parameters:
+      - $ref: '#/components/parameters/ScenarioId'
+      - $ref: '#/components/parameters/StepId'
+    patch:
+      tags:
+        - Steps
+      operationId: updateStep
+      summary: Изменить шаг сценария
+      security:
+        - AdminBearer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateStepRequest'
+      responses:
+        '200':
+          description: Шаг обновлён
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Step'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+      description: Изменение разрешено для сценариев в статусах in_development и disabled.
+    delete:
+      tags:
+        - Steps
+      operationId: deleteStep
+      summary: Удалить шаг сценария
+      security:
+        - AdminBearer: []
+      responses:
+        '204':
+          description: Шаг мягко удалён
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+      description: Мягко удаляет шаг сценария. Операция разрешена для сценариев в статусах in_development и disabled.
+        Удалённый шаг исключается из конфигурации сценария, предпросмотра и Runtime, но связанные исторические события
+        сохраняются.
+  /api/v1/scenarios/{scenarioId}/steps/order:
+    parameters:
+      - $ref: '#/components/parameters/ScenarioId'
+    put:
+      tags:
+        - Steps
+      operationId: reorderSteps
+      summary: Изменить порядок шагов
+      security:
+        - AdminBearer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReorderStepsRequest'
+      responses:
+        '200':
+          description: Шаги в новом порядке
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Step'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+      description: Полностью заменяет порядок шагов. Операция разрешена для сценариев в статусах in_development и disabled.
+
+  # ============================================================================
+  # PDF Report
+  # ============================================================================
+  /api/v1/scenarios/{scenarioId}/report/pdf:
+    parameters:
+      - $ref: '#/components/parameters/ScenarioId'
+      - $ref: '#/components/parameters/From'
+      - $ref: '#/components/parameters/To'
+    get:
+      tags:
+        - Reports
+      operationId: getScenarioPdfReport
+      summary: Получить PDF-отчёт по сценарию
+      security:
+        - AdminBearer: []
+      responses:
+        '200':
+          description: PDF-отчёт
+          headers:
+            Content-Disposition:
+              schema:
+                type: string
+              example: attachment; filename="scenario-report.pdf"
+          content:
+            application/pdf:
+              schema:
+                type: string
+                format: binary
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+      description: Формирует PDF-отчёт за всё время либо за период from–to. Параметры from и to должны передаваться либо
+        вместе, либо оба отсутствовать. Значение from включается в период, значение to не включается.
+
+  # ============================================================================
+  # Analytics
+  # ============================================================================
+  /api/v1/projects/{projectId}/analytics/total:
+    parameters:
+      - $ref: '#/components/parameters/ProjectId'
+      - $ref: '#/components/parameters/From'
+      - $ref: '#/components/parameters/To'
+    get:
+      tags:
+        - Analytics
+      operationId: getProjectAnalyticsTotal
+      summary: Получить общую аналитику проекта
+      security:
+        - AdminBearer: []
+      responses:
+        '200':
+          description: Общая аналитика проекта
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectAnalytics'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+      description: Возвращает агрегированные показатели проекта за всё время либо за период from–to.
+  /api/v1/scenarios/{scenarioId}/analytics/total:
+    parameters:
+      - $ref: '#/components/parameters/ScenarioId'
+      - $ref: '#/components/parameters/From'
+      - $ref: '#/components/parameters/To'
+    get:
+      tags:
+        - Analytics
+      operationId: getScenarioAnalyticsTotal
+      summary: Получить общую аналитику сценария
+      security:
+        - AdminBearer: []
+      responses:
+        '200':
+          description: Общая аналитика сценария
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ScenarioAnalytics'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+      description: Возвращает агрегированные показатели прохождения сценария за всё время либо за период from–to.
+  /api/v1/scenarios/{scenarioId}/analytics/detailed:
+    parameters:
+      - $ref: '#/components/parameters/ScenarioId'
+      - $ref: '#/components/parameters/From'
+      - $ref: '#/components/parameters/To'
+    get:
+      tags:
+        - Analytics
+      operationId: getDetailedScenarioAnalytics
+      summary: Получить подробную аналитику сценария
+      security:
+        - AdminBearer: []
+      responses:
+        '200':
+          description: Подробная аналитика по шагам
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DetailedScenarioAnalytics'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+      description: Возвращает общие показатели сценария и воронку прохождения по шагам.
+
+  # ============================================================================
+  # Runtime
+  # ============================================================================
+  /api/v1/sdk/scenarios/resolve:
+    post:
+      tags:
+        - Runtime
+      operationId: resolveSdkScenario
+      summary: Найти подходящий сценарий для SDK
+      security:
+        - ProjectKey: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ResolveScenarioRequest'
+      responses:
+        '200':
+          description: Подходящий сценарий найден
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RuntimeScenario'
+        '204':
+          description: Подходящий сценарий отсутствует
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+      description: Определяет подходящий enabled-сценарий по project_key, странице и пользователю. Сессию прохождения
+        не создаёт.
+
+  # ============================================================================
+  # Tracking
+  # ============================================================================
+  /api/v1/sdk/sessions:
+    post:
+      tags:
+        - Tracking
+      operationId: createOnboardingSession
+      summary: Создать сессию прохождения
+      security:
+        - ProjectKey: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StartSessionRequest'
+      responses:
+        '201':
+          description: Сессия создана
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OnboardingSession'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+      description: Создаёт активную сессию, когда SDK фактически начинает показывать сценарий.
+  /api/v1/sdk/events:
+    post:
+      tags:
+        - Tracking
+      operationId: createOnboardingEvent
+      summary: Сохранить событие прохождения
+      security:
+        - ProjectKey: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateEventRequest'
+      responses:
+        '202':
+          description: Событие принято
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EventAcceptedResponse'
+        '200':
+          description: Повторная отправка ранее сохранённого события
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EventAcceptedResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+      description: Сохраняет идемпотентное событие, отправленное SDK.
+components:
+  securitySchemes:
+    AdminBearer:
+      type: http
+      scheme: bearer
+      description: Административный токен для MVP.
+    ProjectKey:
+      type: apiKey
+      in: header
+      name: X-Project-Key
+      description: Публичный ключ проекта для SDK.
+  parameters:
+    ProjectId:
+      name: projectId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    ScenarioId:
+      name: scenarioId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    StepId:
+      name: stepId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    Limit:
+      name: limit
+      in: query
+      required: false
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 20
+      description: Максимальное количество записей в ответе.
+    Offset:
+      name: offset
+      in: query
+      required: false
+      schema:
+        type: integer
+        minimum: 0
+        default: 0
+      description: Количество записей, которые нужно пропустить.
+    From:
+      name: from
+      in: query
+      required: false
+      description: Начало периода в UTC, включительно. Должно передаваться вместе с параметром to.
+      schema:
+        type: string
+        format: date-time
+    To:
+      name: to
+      in: query
+      required: false
+      description: Конец периода в UTC, исключительно. Должно передаваться вместе с параметром from.
+      schema:
+        type: string
+        format: date-time
+    ElementId:
+      name: elementId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+  responses:
+    BadRequest:
+      description: Некорректный запрос
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Unauthorized:
+      description: Отсутствует или недействителен административный токен
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Forbidden:
+      description: Недействительный project_key или запрещённый Origin
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    NotFound:
+      description: Ресурс не найден
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Conflict:
+      description: Операция конфликтует с текущим состоянием ресурса
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    ValidationError:
+      description: Нарушены правила валидации или бизнес-правила
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+  schemas:
+    ErrorResponse:
+      type: object
+      required:
+        - code
+        - message
+      properties:
+        code:
+          type: string
+          example: scenario_invalid_state
+        message:
+          type: string
+          example: published scenario cannot be edited
+        details:
+          type: object
+          additionalProperties: true
+    CreateProjectRequest:
+      type: object
+      required:
+        - name
+        - elements
+      additionalProperties: false
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 255
+        elements:
+          type: array
+          items:
+            $ref: '#/components/schemas/CreateElementInput'
+          description: Начальный список элементов интерфейса проекта. Может быть пустым; элементы можно добавить позднее
+            отдельной ручкой.
+    UpdateProjectRequest:
+      type: object
+      minProperties: 1
+      additionalProperties: false
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 255
+    Project:
+      type: object
+      required:
+        - id
+        - name
+        - project_key
+        - created_at
+        - updated_at
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        project_key:
+          type: string
+          example: pk_demo_123
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    ProjectListResponse:
+      type: object
+      required:
+        - items
+        - total
+        - limit
+        - offset
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Project'
+        total:
+          type: integer
+          minimum: 0
+        limit:
+          type: integer
+        offset:
+          type: integer
+    ScenarioStatus:
+      type: string
+      enum:
+        - in_development
+        - enabled
+        - disabled
+      description: in_development — сценарий настраивается и ещё не публиковался; enabled — доступен Runtime и недоступен
+        для изменения; disabled — недоступен Runtime и может быть отредактирован.
+    CreateScenarioRequest:
+      type: object
+      required:
+        - name
+        - page_pattern
+      additionalProperties: false
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 255
+        description:
+          type: string
+          maxLength: 2000
+          default: ''
+        page_pattern:
+          type: string
+          minLength: 1
+          maxLength: 2048
+          example: /advertisements/create
+    UpdateScenarioRequest:
+      type: object
+      minProperties: 1
+      additionalProperties: false
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 255
+        description:
+          type: string
+          maxLength: 2000
+        page_pattern:
+          type: string
+          minLength: 1
+          maxLength: 2048
+    Scenario:
+      type: object
+      required:
+        - id
+        - project_id
+        - name
+        - description
+        - page_pattern
+        - status
+        - published_at
+        - created_at
+        - updated_at
+      properties:
+        id:
+          type: string
+          format: uuid
+        project_id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        description:
+          type: string
+        page_pattern:
+          type: string
+        status:
+          $ref: '#/components/schemas/ScenarioStatus'
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        published_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: Время первой публикации сценария. Равно null, если сценарий ещё ни разу не публиковался.
+    ScenarioSummary:
+      type: object
+      required:
+        - id
+        - project_id
+        - name
+        - page_pattern
+        - status
+        - steps_count
+        - published_at
+        - created_at
+        - updated_at
+      properties:
+        id:
+          type: string
+          format: uuid
+        project_id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        page_pattern:
+          type: string
+        status:
+          $ref: '#/components/schemas/ScenarioStatus'
+        steps_count:
+          type: integer
+          minimum: 0
+        published_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: Время первой публикации сценария. Равно null, если сценарий ещё ни разу не публиковался.
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    ScenarioListResponse:
+      type: object
+      required:
+        - items
+        - total
+        - limit
+        - offset
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/ScenarioSummary'
+        total:
+          type: integer
+          minimum: 0
+        limit:
+          type: integer
+        offset:
+          type: integer
+    CreateStepRequest:
+      type: object
+      required:
+        - element_id
+        - title
+        - description
+      additionalProperties: false
+      properties:
+        step_num:
+          type: integer
+          minimum: 1
+          description: Если не передан, шаг добавляется в конец.
+        title:
+          type: string
+          minLength: 1
+          maxLength: 255
+        description:
+          type: string
+          minLength: 1
+          maxLength: 2000
+        frontend_data:
+          $ref: '#/components/schemas/FrontendStepData'
+        element_id:
+          type: string
+          format: uuid
+          description: Элемент должен принадлежать тому же проекту, что и сценарий, и соответствовать странице сценария.
+    UpdateStepRequest:
+      type: object
+      minProperties: 1
+      additionalProperties: false
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 255
+        description:
+          type: string
+          minLength: 1
+          maxLength: 2000
+        frontend_data:
+          $ref: '#/components/schemas/FrontendStepData'
+        element_id:
+          type: string
+          format: uuid
+    ReorderStepsRequest:
+      type: object
+      required:
+        - ordered_step_ids
+      additionalProperties: false
+      properties:
+        ordered_step_ids:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items:
+            type: string
+            format: uuid
+    Step:
+      type: object
+      required:
+        - id
+        - scenario_id
+        - element_id
+        - step_num
+        - title
+        - description
+        - frontend_data
+        - created_at
+        - updated_at
+      properties:
+        id:
+          type: string
+          format: uuid
+        scenario_id:
+          type: string
+          format: uuid
+        step_num:
+          type: integer
+          minimum: 1
+        title:
+          type: string
+        description:
+          type: string
+        frontend_data:
+          $ref: '#/components/schemas/FrontendStepData'
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        element_id:
+          type: string
+          format: uuid
+          description: Элемент интерфейса проекта, на который ориентирована подсказка.
+      description: Шаг онбординга. Содержит ссылку на Element, к которому SDK привязывает подсказку.
+    ResolveScenarioRequest:
+      type: object
+      required:
+        - page
+        - user_id
+      additionalProperties: false
+      properties:
+        page:
+          type: string
+          minLength: 1
+          maxLength: 2048
+          example: /advertisements/create
+        user_id:
+          type: string
+          minLength: 1
+          maxLength: 255
+          description: Внешний идентификатор пользователя классифайда.
+    RuntimeScenario:
+      type: object
+      required:
+        - id
+        - name
+        - description
+        - page_pattern
+        - steps
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        description:
+          type: string
+        page_pattern:
+          type: string
+        steps:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/RuntimeStep'
+    RuntimeStep:
+      type: object
+      required:
+        - id
+        - element
+        - step_num
+        - title
+        - description
+        - frontend_data
+      properties:
+        id:
+          type: string
+          format: uuid
+        step_num:
+          type: integer
+          minimum: 1
+        title:
+          type: string
+        description:
+          type: string
+        frontend_data:
+          $ref: '#/components/schemas/FrontendStepData'
+        element:
+          $ref: '#/components/schemas/RuntimeElement'
+    StartSessionRequest:
+      type: object
+      required:
+        - scenario_id
+        - user_id
+      additionalProperties: false
+      properties:
+        scenario_id:
+          type: string
+          format: uuid
+        user_id:
+          type: string
+          minLength: 1
+          maxLength: 255
+    SessionStatus:
+      type: string
+      enum:
+        - active
+        - completed
+        - skipped
+      description: active — прохождение начато; completed — получено событие onboarding_completed; skipped — получено
+        событие onboarding_skipped.
+    OnboardingSession:
+      type: object
+      required:
+        - id
+        - scenario_id
+        - user_id
+        - status
+        - started_at
+      properties:
+        id:
+          type: string
+          format: uuid
+        scenario_id:
+          type: string
+          format: uuid
+        user_id:
+          type: string
+        status:
+          $ref: '#/components/schemas/SessionStatus'
+        started_at:
+          type: string
+          format: date-time
+        finished_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: Время завершения или пропуска онбординга. Равно null для активной сессии.
+    EventType:
+      type: string
+      enum:
+        - step_shown
+        - step_completed
+        - step_skipped
+        - onboarding_completed
+        - onboarding_skipped
+      description: step_shown — SDK показал шаг; step_completed — пользователь выполнил шаг; step_skipped — пользователь
+        пропустил шаг и продолжил онбординг; onboarding_completed — онбординг завершён; onboarding_skipped — пользователь
+        явно пропустил весь онбординг.
+    FrontendStepData:
+      type: object
+      description: Произвольная конфигурация шага для frontend/SDK. Точная структура будет согласована с frontend позднее.
+        В PostgreSQL поле хранится как jsonb.
+      additionalProperties: true
+      default: {}
+    OnboardingEvent:
+      type: object
+      required:
+        - id
+        - session_id
+        - type
+        - data
+        - occurred_at
+        - received_at
+      properties:
+        id:
+          type: string
+          format: uuid
+        session_id:
+          type: string
+          format: uuid
+        step_id:
+          type: string
+          format: uuid
+          nullable: true
+          description: Обязателен для событий step_shown, step_completed и step_skipped. Не передаётся или равен null
+            для событий onboarding_completed и onboarding_skipped.
+        type:
+          $ref: '#/components/schemas/EventType'
+        data:
+          type: object
+          additionalProperties: true
+        occurred_at:
+          type: string
+          format: date-time
+        received_at:
+          type: string
+          format: date-time
+    CreateEventRequest:
+      type: object
+      required:
+        - id
+        - session_id
+        - type
+        - occurred_at
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: ID генерируется SDK и обеспечивает идемпотентность.
+        session_id:
+          type: string
+          format: uuid
+        step_id:
+          type: string
+          format: uuid
+          nullable: true
+          description: Обязателен для событий step_shown, step_completed и step_skipped. Не передаётся или равен null
+            для событий onboarding_completed и onboarding_skipped.
+        type:
+          $ref: '#/components/schemas/EventType'
+        data:
+          type: object
+          additionalProperties: true
+          default: {}
+        occurred_at:
+          type: string
+          format: date-time
+    EventAcceptedResponse:
+      type: object
+      required:
+        - event
+        - duplicate
+      properties:
+        event:
+          $ref: '#/components/schemas/OnboardingEvent'
+        duplicate:
+          type: boolean
+          description: true, если событие с таким id уже было сохранено.
+    ProjectAnalytics:
+      type: object
+      required:
+        - project_id
+        - total_scenarios
+        - enabled_scenarios
+        - sessions_started
+        - sessions_completed
+        - sessions_skipped
+        - completion_rate
+        - skip_rate
+      properties:
+        project_id:
+          type: string
+          format: uuid
+        total_scenarios:
+          type: integer
+          minimum: 0
+        enabled_scenarios:
+          type: integer
+          minimum: 0
+        sessions_started:
+          type: integer
+          minimum: 0
+        sessions_completed:
+          type: integer
+          minimum: 0
+        sessions_skipped:
+          type: integer
+          minimum: 0
+        completion_rate:
+          type: number
+          format: double
+          minimum: 0
+          maximum: 1
+        skip_rate:
+          type: number
+          format: double
+          minimum: 0
+          maximum: 1
+      description: Модель чтения общей аналитики проекта.
+    ScenarioAnalytics:
+      type: object
+      required:
+        - scenario_id
+        - started
+        - completed
+        - skipped
+        - completion_rate
+        - skip_rate
+        - average_completion_time_seconds
+      properties:
+        scenario_id:
+          type: string
+          format: uuid
+        started:
+          type: integer
+          minimum: 0
+        completed:
+          type: integer
+          minimum: 0
+        skipped:
+          type: integer
+          minimum: 0
+        completion_rate:
+          type: number
+          format: double
+          minimum: 0
+          maximum: 1
+          description: completed / started. При started = 0 возвращается 0.
+        skip_rate:
+          type: number
+          format: double
+          minimum: 0
+          maximum: 1
+          description: skipped / started. При started = 0 возвращается 0.
+        average_completion_time_seconds:
+          type: number
+          format: double
+          minimum: 0
+          description: 'Средняя длительность только завершённых сессий: finished_at - started_at.'
+      description: Модель чтения общей аналитики прохождения сценария.
+    DetailedScenarioAnalytics:
+      allOf:
+        - $ref: '#/components/schemas/ScenarioAnalytics'
+        - type: object
+          required:
+            - steps
+          properties:
+            steps:
+              type: array
+              items:
+                $ref: '#/components/schemas/StepAnalytics'
+              description: Аналитика каждого шага в порядке прохождения сценария.
+      description: Общая аналитика сценария вместе с аналитикой каждого шага.
+    Element:
+      type: object
+      required:
+        - id
+        - project_id
+        - key
+        - label
+        - description
+        - created_at
+        - updated_at
+      properties:
+        id:
+          type: string
+          format: uuid
+        project_id:
+          type: string
+          format: uuid
+        key:
+          type: string
+          minLength: 1
+          maxLength: 255
+          description: Стабильный технический ключ элемента. Рекомендуется использовать его как значение HTML-атрибута
+            data-onboarding-id; SDK ищет элемент по селектору [data-onboarding-id="<key>"]. Ключ уникален внутри проекта.
+          example: publish-ad-button
+        label:
+          type: string
+          minLength: 1
+          maxLength: 255
+          description: Человекочитаемое название элемента для администратора.
+          example: Кнопка публикации объявления
+        description:
+          type: string
+          maxLength: 2000
+          default: ''
+          description: Необязательное описание назначения элемента.
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    CreateElementInput:
+      type: object
+      required:
+        - key
+        - label
+      additionalProperties: false
+      properties:
+        key:
+          type: string
+          minLength: 1
+          maxLength: 255
+          example: publish-ad-button
+          description: Стабильный технический ключ элемента. Рекомендуется использовать его как значение HTML-атрибута
+            data-onboarding-id; SDK ищет элемент по селектору [data-onboarding-id="<key>"]. Ключ уникален внутри проекта.
+        label:
+          type: string
+          minLength: 1
+          maxLength: 255
+          example: Кнопка публикации объявления
+        description:
+          type: string
+          maxLength: 2000
+          default: ''
+    ProjectWithElements:
+      allOf:
+        - $ref: '#/components/schemas/Project'
+        - type: object
+          required:
+            - elements
+          properties:
+            elements:
+              type: array
+              items:
+                $ref: '#/components/schemas/Element'
+    RuntimeElement:
+      type: object
+      required:
+        - id
+        - key
+        - label
+        - description
+      properties:
+        id:
+          type: string
+          format: uuid
+        key:
+          type: string
+        label:
+          type: string
+        description:
+          type: string
+    UpdateElementRequest:
+      type: object
+      minProperties: 1
+      additionalProperties: false
+      properties:
+        key:
+          type: string
+          minLength: 1
+          maxLength: 255
+          description: Стабильный технический ключ элемента. Рекомендуется использовать его как значение HTML-атрибута
+            data-onboarding-id; SDK ищет элемент по селектору [data-onboarding-id="<key>"]. Ключ уникален внутри проекта.
+        label:
+          type: string
+          minLength: 1
+          maxLength: 255
+        description:
+          type: string
+          maxLength: 2000
+    ScenarioWithSteps:
+      allOf:
+        - $ref: '#/components/schemas/Scenario'
+        - type: object
+          required:
+            - steps
+          properties:
+            steps:
+              type: array
+              description: Упорядоченный список шагов сценария.
+              items:
+                $ref: '#/components/schemas/Step'
+      description: Сценарий вместе с полным упорядоченным списком шагов.
+    StepAnalytics:
+      type: object
+      required:
+        - step_id
+        - position
+        - title
+        - shown
+        - completed
+        - skipped
+        - completion_rate
+        - skip_rate
+        - drop_off_rate
+      properties:
+        step_id:
+          type: string
+          format: uuid
+        position:
+          type: integer
+          minimum: 1
+        title:
+          type: string
+        shown:
+          type: integer
+          minimum: 0
+          description: Количество сессий, в которых SDK показал этот шаг.
+        completed:
+          type: integer
+          minimum: 0
+          description: Количество сессий, в которых шаг был выполнен.
+        skipped:
+          type: integer
+          minimum: 0
+          description: Количество сессий, в которых шаг был явно пропущен.
+        completion_rate:
+          type: number
+          format: double
+          minimum: 0
+          maximum: 1
+          description: completed / shown. При shown = 0 возвращается 0.
+        skip_rate:
+          type: number
+          format: double
+          minimum: 0
+          maximum: 1
+          description: skipped / shown. При shown = 0 возвращается 0.
+        drop_off_rate:
+          type: number
+          format: double
+          minimum: 0
+          maximum: 1
+          description: Доля пользователей, которые увидели текущий шаг, но не дошли до следующего шага. Для последнего
+            шага сравнивается с количеством завершённых онбордингов.
+      description: Модель чтения аналитики одного шага сценария.
