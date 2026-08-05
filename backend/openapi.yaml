@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: Interactive Onboarding API
-  version: 0.4.0
+  version: 0.9.0
   description: 'API MVP-платформы интерактивного онбординга: управление проектами, элементами интерфейса, сценариями
     и шагами, Runtime API для SDK, Tracking, аналитика и PDF-отчёты.'
 servers:
@@ -128,6 +128,26 @@ paths:
         '422':
           $ref: '#/components/responses/ValidationError'
       description: Частично изменяет настройки проекта.
+    delete:
+      tags:
+        - Projects
+      operationId: deleteProject
+      summary: Удалить проект
+      description: |
+        Мягко удаляет проект. Удалённый проект перестаёт возвращаться
+        административными ручками и не используется Runtime.
+        Связанные элементы, сценарии, сессии и события физически сохраняются.
+      security:
+        - AdminBearer: []
+      responses:
+        '204':
+          description: Проект мягко удалён
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
 
   # ============================================================================
   # Elements
@@ -228,12 +248,15 @@ paths:
         - Elements
       operationId: deleteProjectElement
       summary: Удалить элемент проекта
-      description: Удаляет элемент, если на него не ссылается ни один шаг сценария.
+      description: |
+        Мягко удаляет элемент, если на него не ссылается ни один неудалённый
+        шаг сценария. Удалённый элемент перестаёт возвращаться
+        административными ручками и не используется Runtime.
       security:
         - AdminBearer: []
       responses:
         '204':
-          description: Элемент удалён
+          description: Элемент мягко удалён
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':

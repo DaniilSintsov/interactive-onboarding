@@ -7,14 +7,12 @@ CREATE TABLE onboarding.elements
     description TEXT        NOT NULL DEFAULT '',
     created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-
-    CONSTRAINT elements_project_id_key_unique
-        UNIQUE (project_id, key),
+    deleted_at  TIMESTAMPTZ,
 
     CONSTRAINT elements_project_fk
         FOREIGN KEY (project_id)
             REFERENCES onboarding.projects (id)
-            ON DELETE CASCADE,
+            ON DELETE RESTRICT,
 
     CONSTRAINT elements_key_length
         CHECK (char_length(key) BETWEEN 1 AND 255),
@@ -24,7 +22,11 @@ CREATE TABLE onboarding.elements
 
     CONSTRAINT elements_description_length
         CHECK (char_length(description) <= 2000)
-)
+);
+
+CREATE UNIQUE INDEX elements_project_id_key_unique
+    ON onboarding.elements (project_id, key)
+    WHERE deleted_at IS NULL;
 
 CREATE TRIGGER elements_set_updated_at
     BEFORE UPDATE

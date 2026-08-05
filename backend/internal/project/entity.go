@@ -14,6 +14,7 @@ type Element struct {
 	Description string
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
+	DeletedAt   *time.Time
 }
 
 type Project struct {
@@ -22,4 +23,5 @@ type Project struct {
 	ProjectKey string
 	CreatedAt  time.Time
 	UpdatedAt  time.Time
+	DeletedAt  *time.Time
 }

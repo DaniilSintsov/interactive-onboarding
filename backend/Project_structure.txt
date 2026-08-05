@@ -2,10 +2,11 @@
 
 - Менеджер проектов:
 Отвечает за создание проектов, выдачу project_key для SDK
-POST  /api/v1/projects - создать проект
-GET   /api/v1/projects - получить список проектов
-GET   /api/v1/projects/{projectId} - получить конкретный проект
-PATCH /api/v1/projects/{projectId} - изменить проект
+POST   /api/v1/projects - создать проект
+GET    /api/v1/projects - получить список проектов
+GET    /api/v1/projects/{projectId} - получить конкретный проект
+PATCH  /api/v1/projects/{projectId} - изменить проект
+DELETE /api/v1/projects/{projectId} - удалить проект
 GET    /api/v1/projects/{projectId}/elements - получить список элементов страницы
 POST   /api/v1/projects/{projectId}/elements - добавить элемент
 PATCH  /api/v1/projects/{projectId}/elements/{elementId} - изменить элемент
@@ -61,13 +62,15 @@ POST   /api/v1/sdk/events   - сохранить событие прохожде
  - Description
  - Created_at
  - Updated_at
+ - Deleted_at
 
 - Project
  - ID
  - Name
- - project_key
- - created_at
- - updated_at
+ - Project_key
+ - Created_at
+ - Updated_at
+ - Deleted_at
 
 - Scenario
  - ID
