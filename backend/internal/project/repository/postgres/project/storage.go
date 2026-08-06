@@ -1,1 +1,178 @@
 package project
+
+import (
+	"context"
+	"errors"
+	"fmt"
+
+	"github.com/DaniilSintsov/interactive-onboarding/backend/internal/project/entity"
+	"github.com/DaniilSintsov/interactive-onboarding/backend/internal/project/errs"
+	sqlc "github.com/DaniilSintsov/interactive-onboarding/backend/internal/project/repository/postgres/project/sqlc"
+	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
+)
+
+type projectRepository struct {
+	queries *sqlc.Queries
+}
+
+func NewRepository(db sqlc.DBTX) *projectRepository {
+	return &projectRepository{
+		queries: sqlc.New(db),
+	}
+}
+
+const (
+	uniqueViolationCode = "23505"
+
+	projectKeyUniqueConstraint = "projects_project_key_unique"
+)
+
+func (repo *projectRepository) Create(
+	ctx context.Context,
+	project entity.Project,
+) (entity.Project, error) {
+	createdProject, err := repo.queries.CreateProject(ctx, sqlc.CreateProjectParams{
+		Name:       project.Name,
+		ProjectKey: project.ProjectKey,
+	})
+	if err != nil {
+		var pgErr *pgconn.PgError
+
+		if errors.As(err, &pgErr) &&
+			pgErr.Code == uniqueViolationCode &&
+			pgErr.ConstraintName == projectKeyUniqueConstraint {
+
+			return entity.Project{}, errs.ErrProjectKeyAlreadyExists
+		}
+
+		return entity.Project{}, fmt.Errorf("project repository - create: %w", err)
+	}
+
+	return entity.Project{
+		ID:         createdProject.ID,
+		Name:       createdProject.Name,
+		ProjectKey: createdProject.ProjectKey,
+		CreatedAt:  createdProject.CreatedAt.Time.UTC(),
+		UpdatedAt:  createdProject.UpdatedAt.Time.UTC(),
+	}, nil
+}
+
+func (repo *projectRepository) Update(
+	ctx context.Context,
+	projectID uuid.UUID,
+	name string,
+) (entity.Project, error) {
+	updatedProject, err := repo.queries.UpdateProject(ctx, sqlc.UpdateProjectParams{
+		Name:      name,
+		ProjectID: projectID,
+	})
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return entity.Project{}, errs.ErrProjectNotFound
+		}
+
+		return entity.Project{}, fmt.Errorf("project repository - update: %w", err)
+	}
+
+	return entity.Project{
+		ID:         updatedProject.ID,
+		Name:       updatedProject.Name,
+		ProjectKey: updatedProject.ProjectKey,
+		CreatedAt:  updatedProject.CreatedAt.Time.UTC(),
+		UpdatedAt:  updatedProject.UpdatedAt.Time.UTC(),
+	}, nil
+}
+
+func (repo *projectRepository) Delete(
+	ctx context.Context,
+	projectID uuid.UUID,
+) error {
+	_, err := repo.queries.DeleteProject(ctx, projectID)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return errs.ErrProjectNotFound
+		}
+
+		return fmt.Errorf("project repository - delete: %w", err)
+	}
+
+	return nil
+}
+
+func (repo *projectRepository) List(
+	ctx context.Context,
+	limit int32,
+	offset int32,
+) ([]entity.Project, error) {
+	rows, err := repo.queries.ListProjects(ctx, sqlc.ListProjectsParams{
+		PageLimit:  limit,
+		PageOffset: offset,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("project repository - list: %w", err)
+	}
+
+	projects := make([]entity.Project, 0, len(rows))
+	for _, row := range rows {
+		projects = append(projects, entity.Project{
+			ID:         row.ID,
+			Name:       row.Name,
+			ProjectKey: row.ProjectKey,
+			CreatedAt:  row.CreatedAt.Time.UTC(),
+			UpdatedAt:  row.UpdatedAt.Time.UTC(),
+		})
+	}
+
+	return projects, nil
+}
+
+func (repo *projectRepository) Count(
+	ctx context.Context,
+) (int64, error) {
+	count, err := repo.queries.CountProjects(ctx)
+	if err != nil {
+		return 0, fmt.Errorf("project repository - count: %w", err)
+	}
+
+	return count, nil
+}
+
+func (repo *projectRepository) GetByID(
+	ctx context.Context,
+	projectID uuid.UUID,
+) (entity.Project, error) {
+	project, err := repo.queries.GetProjectByID(ctx, projectID)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return entity.Project{}, errs.ErrProjectNotFound
+		}
+
+		return entity.Project{}, fmt.Errorf("project repository - get by id: %w", err)
+	}
+
+	return entity.Project{
+		ID:         project.ID,
+		Name:       project.Name,
+		ProjectKey: project.ProjectKey,
+		CreatedAt:  project.CreatedAt.Time.UTC(),
+		UpdatedAt:  project.UpdatedAt.Time.UTC(),
+	}, nil
+}
+
+func (repo *projectRepository) GetIDByKey(
+	ctx context.Context,
+	projectKey string,
+) (uuid.UUID, error) {
+	id, err := repo.queries.GetProjectIDByKey(ctx, projectKey)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return uuid.Nil, errs.ErrProjectNotFound
+		}
+
+		return uuid.Nil, fmt.Errorf("project repository - get id by key: %w", err)
+	}
+
+	return id, nil
+}
