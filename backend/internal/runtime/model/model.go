@@ -1,5 +1,7 @@
 package model
 
+import "encoding/json"
+
 type ResolveScenarioRequest struct {
 	Page   string `json:"page" validate:"required,min=1,max=2048"`
 	UserID string `json:"user_id" validate:"required,min=1,max=255"`
@@ -14,12 +16,12 @@ type RuntimeScenario struct {
 }
 
 type RuntimeStep struct {
-	ID           string         `json:"id"`
-	StepNum      int            `json:"step_num"`
-	Title        string         `json:"title"`
-	Description  string         `json:"description"`
-	FrontendData map[string]any `json:"frontend_data"`
-	Element      RuntimeElement `json:"element"`
+	ID           string          `json:"id"`
+	StepNum      int             `json:"step_num"`
+	Title        string          `json:"title"`
+	Description  string          `json:"description"`
+	FrontendData json.RawMessage `json:"frontend_data"`
+	Element      RuntimeElement  `json:"element"`
 }
 
 type RuntimeElement struct {

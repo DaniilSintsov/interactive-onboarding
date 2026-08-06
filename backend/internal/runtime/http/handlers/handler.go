@@ -23,11 +23,7 @@ func NewHandler(srvc RuntimeService) *RuntimeHandler {
 	}
 }
 
-func (h *RuntimeHandler) RegisterRoutes(router *http.ServeMux) {
-	router.HandleFunc("POST /api/v1/sdk/scenarios/resolve", h.getScenario)
-}
-
-func (h *RuntimeHandler) getScenario(w http.ResponseWriter, r *http.Request) {
+func (h *RuntimeHandler) GetScenario(w http.ResponseWriter, r *http.Request) {
 	scenarioRequest := new(runtimeModel.ResolveScenarioRequest)
 	if err := ParseJson(r, scenarioRequest); err != nil {
 		raiseError(w, "failed to parse scenario request", err, http.StatusBadRequest)
@@ -35,12 +31,16 @@ func (h *RuntimeHandler) getScenario(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := requestValidator.Struct(scenarioRequest); err != nil {
-		raiseError(w, "invalid scenario request", err, http.StatusNoContent)
+		raiseError(w, "invalid scenario request", err, http.StatusUnprocessableEntity)
 		return
 	}
 	scenarioResponse, err := h.service.FindScenario(scenarioRequest.Page, scenarioRequest.UserID)
 	if err != nil {
 		raiseError(w, "invalid scenario response", err, http.StatusBadRequest)
+		return
+	}
+	if scenarioResponse == nil {
+		w.WriteHeader(http.StatusNoContent)
 		return
 	}
 	_ = WriteJson(w, http.StatusOK, scenarioResponse)

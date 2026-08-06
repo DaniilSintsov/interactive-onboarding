@@ -1,14 +1,6 @@
 package service
 
-import (
-	"errors"
-
-	runtimeModel "github.com/DaniilSintsov/interactive-onboarding/internal/runtime/model"
-)
-
-var (
-	onboardedUser = errors.New("User is already onboarded.")
-)
+import runtimeModel "github.com/DaniilSintsov/interactive-onboarding/internal/runtime/model"
 
 type ScenarioRepository interface {
 	GetScenarioByPageId(pageId string) (runtimeModel.RuntimeScenario, error)
@@ -36,7 +28,8 @@ func (r RuntimeService) FindScenario(pageId string, userId string) (*runtimeMode
 		return nil, err
 	}
 	if user.Onboarded {
-		return nil, onboardedUser
+		// Maps to response code 204
+		return nil, nil
 	}
 
 	return &scenario, nil
