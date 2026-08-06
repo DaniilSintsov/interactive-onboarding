@@ -1,5 +1,7 @@
 package model
 
+import "time"
+
 type ResolveScenarioRequest struct {
 	Page   string `json:"page"`
 	UserID string `json:"user_id"`
@@ -11,12 +13,12 @@ type StartSessionRequest struct {
 }
 
 type CreateEventRequest struct {
-	ID         string         `json:"id"`
-	SessionID  string         `json:"session_id"`
-	StepID     *string        `json:"step_id"`
-	Type       EventType      `json:"type"`
-	Data       map[string]any `json:"data"`
-	OccurredAt string         `json:"occurred_at"`
+	ID         string    `json:"id"`
+	SessionID  string    `json:"session_id"`
+	StepID     *string   `json:"step_id"`
+	Type       EventType `json:"type"`
+	Data       []byte    `json:"data"`
+	OccurredAt string    `json:"occurred_at"`
 }
 
 type SessionStatus string
@@ -32,8 +34,8 @@ type OnboardingSession struct {
 	ScenarioID string        `json:"scenario_id"`
 	UserID     string        `json:"user_id"`
 	Status     SessionStatus `json:"status"`
-	StartedAt  string        `json:"started_at"`
-	FinishedAt *string       `json:"finished_at"`
+	StartedAt  time.Time     `json:"started_at"`
+	FinishedAt *time.Time    `json:"finished_at"`
 }
 
 type EventType string
@@ -47,13 +49,13 @@ const (
 )
 
 type OnboardingEvent struct {
-	ID         string         `json:"id"`
-	SessionID  string         `json:"session_id"`
-	StepID     *string        `json:"step_id"`
-	Type       EventType      `json:"type"`
-	Data       map[string]any `json:"data"`
-	OccurredAt string         `json:"occurred_at"`
-	ReceivedAt string         `json:"received_at"`
+	ID         string    `json:"id"`
+	SessionID  string    `json:"session_id"`
+	StepID     *string   `json:"step_id"`
+	Type       EventType `json:"type"`
+	Data       []byte    `json:"data"`
+	OccurredAt time.Time `json:"occurred_at"`
+	ReceivedAt time.Time `json:"received_at"`
 }
 
 type EventAcceptedResponse struct {
