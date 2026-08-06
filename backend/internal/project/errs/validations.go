@@ -12,5 +12,4 @@ var (
 
 	ErrProjectNameRequired = errors.New("project name is required")
 	ErrProjectNameTooLong  = errors.New("project name is too long")
-	ErrProjectKeyRequired  = errors.New("project key is required")
 )

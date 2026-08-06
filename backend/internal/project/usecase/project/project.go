@@ -24,6 +24,10 @@ type (
 		GetByID(ctx context.Context, projectID uuid.UUID) (entity.Project, error)
 	}
 
+	elementRepository interface {
+		ListByProjectID(ctx context.Context, projectID uuid.UUID) ([]entity.Element, error)
+	}
+
 	projectKeyGenerator interface {
 		Generate() (string, error)
 	}
@@ -39,6 +43,7 @@ type (
 
 type projectService struct {
 	projectRepository   projectRepository
+	elementRepository   elementRepository
 	projectKeyGenerator projectKeyGenerator
 	elementCreator      elementCreator
 	transactor          transactor
@@ -47,6 +52,7 @@ type projectService struct {
 
 func NewProjectService(
 	projectRepository projectRepository,
+	elementRepository elementRepository,
 	projectKeyGenerator projectKeyGenerator,
 	elementCreator elementCreator,
 	transactor transactor,
@@ -54,6 +60,7 @@ func NewProjectService(
 ) *projectService {
 	return &projectService{
 		projectRepository:   projectRepository,
+		elementRepository:   elementRepository,
 		projectKeyGenerator: projectKeyGenerator,
 		elementCreator:      elementCreator,
 		transactor:          transactor,
@@ -167,49 +174,86 @@ func (service *projectService) List(
 func (service *projectService) GetByID(
 	ctx context.Context,
 	projectID uuid.UUID,
-) (entity.Project, error) {
+) (port.ProjectWithElements, error) {
 	if projectID == uuid.Nil {
-		return entity.Project{}, fmt.Errorf("project usecase - get by id: validation error: %w", errs.ErrProjectIDRequired)
+		return port.ProjectWithElements{}, fmt.Errorf("project usecase - get by id: validation error: %w", errs.ErrProjectIDRequired)
 	}
 
-	project, err := service.projectRepository.GetByID(ctx, projectID)
-	if err != nil {
-		if errors.Is(err, errs.ErrProjectNotFound) {
-			return entity.Project{}, err
+	var result port.ProjectWithElements
+
+	err := service.transactor.WithTx(ctx, func(ctx context.Context) error {
+		project, err := service.projectRepository.GetByID(ctx, projectID)
+		if err != nil {
+			if errors.Is(err, errs.ErrProjectNotFound) {
+				return err
+			}
+			return service.wrapGetByIDError(err, projectID)
 		}
-		return entity.Project{}, service.wrapGetByIDError(err, projectID)
+
+		elements, err := service.elementRepository.ListByProjectID(ctx, project.ID)
+		if err != nil {
+			return service.wrapGetByIDError(err, projectID)
+		}
+
+		result = port.ProjectWithElements{
+			Project:  project,
+			Elements: elements,
+		}
+
+		return nil
+	})
+	if err != nil {
+		return port.ProjectWithElements{}, err
 	}
 
-	return project, nil
+	return result, nil
 }
 
 func (service *projectService) Update(
 	ctx context.Context,
 	projectID uuid.UUID,
 	name string,
-) (entity.Project, error) {
+) (port.ProjectWithElements, error) {
 	if projectID == uuid.Nil {
-		return entity.Project{}, fmt.Errorf("project usecase - update: validation error: %w", errs.ErrProjectIDRequired)
+		return port.ProjectWithElements{}, fmt.Errorf("project usecase - update: validation error: %w", errs.ErrProjectIDRequired)
 	}
 	name = strings.TrimSpace(name)
 	if name == "" {
-		return entity.Project{},
+		return port.ProjectWithElements{},
 			fmt.Errorf("project usecase - update: validation error: %w", errs.ErrProjectNameRequired)
 	}
 	if utf8.RuneCountInString(name) > entity.MaxProjectNameLength {
-		return entity.Project{},
+		return port.ProjectWithElements{},
 			fmt.Errorf("project usecase - update: validation error: %w", errs.ErrProjectNameTooLong)
 	}
 
-	updatedProject, err := service.projectRepository.Update(ctx, projectID, name)
-	if err != nil {
-		if errors.Is(err, errs.ErrProjectNotFound) {
-			return entity.Project{}, err
+	var result port.ProjectWithElements
+
+	err := service.transactor.WithTx(ctx, func(ctx context.Context) error {
+		updatedProject, err := service.projectRepository.Update(ctx, projectID, name)
+		if err != nil {
+			if errors.Is(err, errs.ErrProjectNotFound) {
+				return err
+			}
+			return service.wrapUpdateError(err, projectID, name)
 		}
-		return entity.Project{}, service.wrapUpdateError(err, projectID, name)
+
+		elements, err := service.elementRepository.ListByProjectID(ctx, updatedProject.ID)
+		if err != nil {
+			return service.wrapGetByIDError(err, projectID)
+		}
+
+		result = port.ProjectWithElements{
+			Project:  updatedProject,
+			Elements: elements,
+		}
+		return nil
+	})
+	if err != nil {
+		return port.ProjectWithElements{}, err
 	}
 
-	return updatedProject, nil
+	return result, nil
 }
 
 func (service *projectService) Delete(
