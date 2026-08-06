@@ -7,7 +7,7 @@ import (
 
 	"github.com/DaniilSintsov/interactive-onboarding/backend/internal/project/entity"
 	"github.com/DaniilSintsov/interactive-onboarding/backend/internal/project/errs"
-	"github.com/DaniilSintsov/interactive-onboarding/backend/internal/project/repository/model"
+	"github.com/DaniilSintsov/interactive-onboarding/backend/internal/project/port"
 	sqlc "github.com/DaniilSintsov/interactive-onboarding/backend/internal/project/repository/postgres/element/sqlc"
 	"github.com/DaniilSintsov/interactive-onboarding/backend/internal/project/repository/transactor"
 	"github.com/google/uuid"
@@ -110,7 +110,7 @@ func (repo *elementRepository) Create(
 
 func (repo *elementRepository) Update(
 	ctx context.Context,
-	params model.UpdateElementParams,
+	params port.UpdateElementParams,
 ) (entity.Element, error) {
 	updatedElement, err := repo.getQueries(ctx).UpdateElement(ctx, sqlc.UpdateElementParams{
 		ProjectID:   params.ProjectID,

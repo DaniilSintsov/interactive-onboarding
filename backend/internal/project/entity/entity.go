@@ -27,26 +27,37 @@ type Element struct {
 	DeletedAt   *time.Time
 }
 
-func (e Element) Validate() error {
-	if e.ProjectID == uuid.Nil {
-		return errs.ErrElementProjectIDRequired
-	}
-	if strings.TrimSpace(e.Key) == "" {
+func (e *Element) Normalize() {
+	e.Key = strings.TrimSpace(e.Key)
+	e.Label = strings.TrimSpace(e.Label)
+	e.Description = strings.TrimSpace(e.Description)
+}
+
+func CheckElementFields(key string, label string, description string) error {
+	if key == "" {
 		return errs.ErrElementKeyRequired
 	}
-	if strings.TrimSpace(e.Label) == "" {
+	if label == "" {
 		return errs.ErrElementLabelRequired
 	}
-	if utf8.RuneCountInString(e.Key) > MaxElementKeyLength {
+	if utf8.RuneCountInString(key) > MaxElementKeyLength {
 		return errs.ErrElementKeyTooLong
 	}
-	if utf8.RuneCountInString(e.Label) > MaxElementLabelLength {
+	if utf8.RuneCountInString(label) > MaxElementLabelLength {
 		return errs.ErrElementLabelTooLong
 	}
-	if utf8.RuneCountInString(e.Description) > MaxElementDescriptionLength {
+	if utf8.RuneCountInString(description) > MaxElementDescriptionLength {
 		return errs.ErrElementDescriptionTooLong
 	}
 	return nil
+}
+
+func (e *Element) Validate() error {
+	e.Normalize()
+	if e.ProjectID == uuid.Nil {
+		return errs.ErrElementProjectIDRequired
+	}
+	return CheckElementFields(e.Key, e.Label, e.Description)
 }
 
 type Project struct {
@@ -58,12 +69,15 @@ type Project struct {
 	DeletedAt  *time.Time
 }
 
-func (p Project) Validate() error {
-	if strings.TrimSpace(p.Name) == "" {
+func (p *Project) Normalize() {
+	p.Name = strings.TrimSpace(p.Name)
+	p.ProjectKey = strings.TrimSpace(p.ProjectKey)
+}
+
+func (p *Project) Validate() error {
+	p.Normalize()
+	if p.Name == "" {
 		return errs.ErrProjectNameRequired
-	}
-	if strings.TrimSpace(p.ProjectKey) == "" {
-		return errs.ErrProjectKeyRequired
 	}
 	if utf8.RuneCountInString(p.Name) > MaxProjectNameLength {
 		return errs.ErrProjectNameTooLong

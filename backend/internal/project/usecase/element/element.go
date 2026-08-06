@@ -4,12 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strings"
 
 	"github.com/DaniilSintsov/interactive-onboarding/backend/internal/project/entity"
 	"github.com/DaniilSintsov/interactive-onboarding/backend/internal/project/errs"
 	"github.com/DaniilSintsov/interactive-onboarding/backend/internal/project/port"
-	"github.com/DaniilSintsov/interactive-onboarding/backend/internal/project/repository/model"
 	"github.com/google/uuid"
 	"go.uber.org/zap"
 )
@@ -18,7 +16,7 @@ type (
 	elementRepository interface {
 		ListByProjectID(ctx context.Context, projectID uuid.UUID) ([]entity.Element, error)
 		Create(ctx context.Context, element entity.Element) (entity.Element, error)
-		Update(ctx context.Context, params model.UpdateElementParams) (entity.Element, error)
+		Update(ctx context.Context, params port.UpdateElementParams) (entity.Element, error)
 		Delete(ctx context.Context, projectID uuid.UUID, elementID uuid.UUID) error
 		LockActive(ctx context.Context, projectID uuid.UUID, elementID uuid.UUID) error
 	}
@@ -99,9 +97,9 @@ func (service *elementService) Create(
 ) (entity.Element, error) {
 	element := entity.Element{
 		ProjectID:   params.ProjectID,
-		Key:         strings.TrimSpace(params.Key),
-		Label:       strings.TrimSpace(params.Label),
-		Description: strings.TrimSpace(params.Description),
+		Key:         params.Key,
+		Label:       params.Label,
+		Description: params.Description,
 	}
 
 	if err := element.Validate(); err != nil {
@@ -158,7 +156,7 @@ func (service *elementService) Update(
 			return fmt.Errorf("element usecase - update: %w", err)
 		}
 
-		updatedElement, err := service.elementRepository.Update(ctx, model.UpdateElementParams{
+		updatedElement, err := service.elementRepository.Update(ctx, port.UpdateElementParams{
 			ProjectID:   params.ProjectID,
 			ElementID:   params.ElementID,
 			Key:         params.Key,

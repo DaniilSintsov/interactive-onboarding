@@ -12,19 +12,6 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-const countProjects = `-- name: CountProjects :one
-SELECT COUNT(*)
-FROM onboarding.projects
-WHERE deleted_at IS NULL
-`
-
-func (q *Queries) CountProjects(ctx context.Context) (int64, error) {
-	row := q.db.QueryRow(ctx, countProjects)
-	var count int64
-	err := row.Scan(&count)
-	return count, err
-}
-
 const createProject = `-- name: CreateProject :one
 INSERT INTO onboarding.projects (name, project_key)
 VALUES ($1, $2)
@@ -115,7 +102,7 @@ func (q *Queries) GetProjectIDByKey(ctx context.Context, projectKey string) (uui
 }
 
 const listProjects = `-- name: ListProjects :many
-SELECT id, name, project_key, created_at, updated_at
+SELECT id, name, project_key, created_at, updated_at, COUNT(*) OVER ()::bigint AS total
 FROM onboarding.projects
 WHERE deleted_at IS NULL
 ORDER BY created_at DESC, id DESC
@@ -134,6 +121,7 @@ type ListProjectsRow struct {
 	ProjectKey string             `json:"project_key"`
 	CreatedAt  pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt  pgtype.Timestamptz `json:"updated_at"`
+	Total      int64              `json:"total"`
 }
 
 func (q *Queries) ListProjects(ctx context.Context, arg ListProjectsParams) ([]ListProjectsRow, error) {
@@ -151,6 +139,7 @@ func (q *Queries) ListProjects(ctx context.Context, arg ListProjectsParams) ([]L
 			&i.ProjectKey,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.Total,
 		); err != nil {
 			return nil, err
 		}
@@ -167,7 +156,7 @@ SELECT id
 FROM onboarding.projects
 WHERE id = $1
   AND deleted_at IS NULL
-FOR SHARE
+    FOR SHARE
 `
 
 func (q *Queries) LockActiveProject(ctx context.Context, projectID uuid.UUID) (uuid.UUID, error) {

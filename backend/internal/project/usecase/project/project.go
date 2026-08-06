@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"strings"
 	"unicode/utf8"
 
@@ -19,84 +20,147 @@ type (
 		Create(ctx context.Context, project entity.Project) (entity.Project, error)
 		Update(ctx context.Context, projectID uuid.UUID, name string) (entity.Project, error)
 		Delete(ctx context.Context, projectID uuid.UUID) error
-		List(ctx context.Context, limit int32, offset int32) ([]entity.Project, error)
-		Count(ctx context.Context) (int64, error)
+		List(ctx context.Context, limit int32, offset int32) ([]entity.Project, int64, error)
 		GetByID(ctx context.Context, projectID uuid.UUID) (entity.Project, error)
+	}
+
+	projectKeyGenerator interface {
+		Generate() (string, error)
+	}
+
+	elementCreator interface {
+		Create(ctx context.Context, params port.CreateElementParams) (entity.Element, error)
+	}
+
+	transactor interface {
+		WithTx(ctx context.Context, f func(ctx context.Context) error) (err error)
 	}
 )
 
 type projectService struct {
-	projectRepository projectRepository
-	logger            *zap.Logger
+	projectRepository   projectRepository
+	projectKeyGenerator projectKeyGenerator
+	elementCreator      elementCreator
+	transactor          transactor
+	logger              *zap.Logger
 }
 
 func NewProjectService(
 	projectRepository projectRepository,
+	projectKeyGenerator projectKeyGenerator,
+	elementCreator elementCreator,
+	transactor transactor,
 	logger *zap.Logger,
 ) *projectService {
 	return &projectService{
-		projectRepository: projectRepository,
-		logger:            logger,
+		projectRepository:   projectRepository,
+		projectKeyGenerator: projectKeyGenerator,
+		elementCreator:      elementCreator,
+		transactor:          transactor,
+		logger:              logger,
 	}
 }
+
+const maxProjectKeyAttempts = 3
 
 func (service *projectService) Create(
 	ctx context.Context,
-	name string,
-	projectKey string,
-) (entity.Project, error) {
-	project := entity.Project{
-		Name:       strings.TrimSpace(name),
-		ProjectKey: strings.TrimSpace(projectKey),
-	}
-	if err := project.Validate(); err != nil {
-		return entity.Project{}, fmt.Errorf("project usecase - create: validation error: %w", err)
-	}
-	createdProject, err := service.projectRepository.Create(ctx, project)
-	if err != nil {
-		if errors.Is(err, errs.ErrProjectKeyAlreadyExists) {
-			return entity.Project{}, err
-		}
-		return entity.Project{}, service.wrapCreateError(err, name)
+	params port.CreateProjectParams,
+) (port.ProjectWithElements, error) {
+	if err := params.Validate(); err != nil {
+		return port.ProjectWithElements{}, fmt.Errorf("project usecase - create: validation error: %w", err)
 	}
 
-	return createdProject, nil
+	project := entity.Project{
+		Name: strings.TrimSpace(params.Name),
+	}
+	if err := project.Validate(); err != nil {
+		return port.ProjectWithElements{}, fmt.Errorf("project usecase - create: validation error: %w", err)
+	}
+
+	var result port.ProjectWithElements
+	var cycleErr error
+
+	for i := 0; i < maxProjectKeyAttempts; i++ {
+		cycleErr = nil
+
+		projectKey, err := service.projectKeyGenerator.Generate()
+		if err != nil {
+			cycleErr = service.wrapCreateError(err, params.Name)
+			continue
+		}
+		project.ProjectKey = projectKey
+
+		err = service.transactor.WithTx(ctx, func(ctx context.Context) error {
+			createdProject, err := service.projectRepository.Create(ctx, project)
+			if err != nil {
+				if errors.Is(err, errs.ErrProjectKeyAlreadyExists) {
+					return err
+				}
+				return service.wrapCreateError(err, params.Name)
+			}
+
+			createdElements := make([]entity.Element, 0, len(params.Elements))
+			for _, element := range params.Elements {
+				createdElement, err := service.elementCreator.Create(ctx, port.CreateElementParams{
+					ProjectID:   createdProject.ID,
+					Key:         element.Key,
+					Label:       element.Label,
+					Description: element.Description,
+				})
+				if err != nil {
+					return service.wrapCreateError(err, params.Name)
+				}
+				createdElements = append(createdElements, createdElement)
+			}
+
+			result = port.ProjectWithElements{
+				Project:  createdProject,
+				Elements: createdElements,
+			}
+
+			return nil
+		})
+		cycleErr = err
+		if err != nil && errors.Is(err, errs.ErrProjectKeyAlreadyExists) {
+			cycleErr = errs.ErrFailedGenerateUniqueKey
+			continue
+		}
+		break
+	}
+	if cycleErr != nil {
+		return port.ProjectWithElements{}, cycleErr
+	}
+
+	return result, nil
 }
 
 const (
-	MaxPageSize = 100
+	MaxLimit = 100
 )
 
 func (service *projectService) List(
 	ctx context.Context,
-	page int,
-	pageSize int,
+	limit int,
+	offset int,
 ) (port.ListProjectsResult, error) {
-	if page < 1 {
-		return port.ListProjectsResult{}, fmt.Errorf("project usecase - list: validation error: %w", errs.ErrPageInvalid)
+	if offset < 0 || offset > math.MaxInt32 {
+		return port.ListProjectsResult{}, fmt.Errorf("project usecase - list: validation error: %w", errs.ErrOffsetInvalid)
 	}
-	if pageSize < 1 || pageSize > MaxPageSize {
-		return port.ListProjectsResult{}, fmt.Errorf("project usecase - list: validation error: %w", errs.ErrPageSizeInvalid)
-	}
-
-	limit := pageSize
-	offset := (page - 1) * pageSize
-
-	list, err := service.projectRepository.List(ctx, int32(limit), int32(offset))
-	if err != nil {
-		return port.ListProjectsResult{}, service.wrapListError(err, limit, offset)
+	if limit < 1 || limit > MaxLimit {
+		return port.ListProjectsResult{}, fmt.Errorf("project usecase - list: validation error: %w", errs.ErrLimitInvalid)
 	}
 
-	count, err := service.projectRepository.Count(ctx)
+	list, total, err := service.projectRepository.List(ctx, int32(limit), int32(offset))
 	if err != nil {
 		return port.ListProjectsResult{}, service.wrapListError(err, limit, offset)
 	}
 
 	return port.ListProjectsResult{
 		Projects: list,
-		Total:    count,
-		Page:     page,
-		PageSize: pageSize,
+		Total:    total,
+		Limit:    limit,
+		Offset:   offset,
 	}, nil
 }
 
@@ -132,7 +196,7 @@ func (service *projectService) Update(
 		return entity.Project{},
 			fmt.Errorf("project usecase - update: validation error: %w", errs.ErrProjectNameRequired)
 	}
-	if utf8.RuneCountInString(name) > 255 {
+	if utf8.RuneCountInString(name) > entity.MaxProjectNameLength {
 		return entity.Project{},
 			fmt.Errorf("project usecase - update: validation error: %w", errs.ErrProjectNameTooLong)
 	}

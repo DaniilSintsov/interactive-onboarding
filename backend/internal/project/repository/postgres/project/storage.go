@@ -114,17 +114,23 @@ func (repo *projectRepository) List(
 	ctx context.Context,
 	limit int32,
 	offset int32,
-) ([]entity.Project, error) {
+) ([]entity.Project, int64, error) {
 	rows, err := repo.getQueries(ctx).ListProjects(ctx, sqlc.ListProjectsParams{
 		PageLimit:  limit,
 		PageOffset: offset,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("project repository - list: %w", err)
+		return nil, 0, fmt.Errorf("project repository - list: %w", err)
 	}
 
 	projects := make([]entity.Project, 0, len(rows))
-	for _, row := range rows {
+	var total int64
+
+	for i, row := range rows {
+		if i == 0 {
+			total = row.Total
+		}
+
 		projects = append(projects, entity.Project{
 			ID:         row.ID,
 			Name:       row.Name,
@@ -134,18 +140,7 @@ func (repo *projectRepository) List(
 		})
 	}
 
-	return projects, nil
-}
-
-func (repo *projectRepository) Count(
-	ctx context.Context,
-) (int64, error) {
-	count, err := repo.getQueries(ctx).CountProjects(ctx)
-	if err != nil {
-		return 0, fmt.Errorf("project repository - count: %w", err)
-	}
-
-	return count, nil
+	return projects, total, nil
 }
 
 func (repo *projectRepository) GetByID(

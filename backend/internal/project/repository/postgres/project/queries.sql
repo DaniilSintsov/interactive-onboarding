@@ -4,17 +4,12 @@ VALUES (sqlc.arg(name), sqlc.arg(project_key))
 RETURNING id, name, project_key, created_at, updated_at;
 
 -- name: ListProjects :many
-SELECT id, name, project_key, created_at, updated_at
+SELECT id, name, project_key, created_at, updated_at, COUNT(*) OVER ()::bigint AS total
 FROM onboarding.projects
 WHERE deleted_at IS NULL
 ORDER BY created_at DESC, id DESC
 LIMIT sqlc.arg(page_limit)::integer
 OFFSET sqlc.arg(page_offset)::integer;
-
--- name: CountProjects :one
-SELECT COUNT(*)
-FROM onboarding.projects
-WHERE deleted_at IS NULL;
 
 -- name: GetProjectByID :one
 SELECT id, name, project_key, created_at, updated_at
@@ -47,4 +42,4 @@ SELECT id
 FROM onboarding.projects
 WHERE id = sqlc.arg(project_id)
   AND deleted_at IS NULL
-FOR SHARE;
+    FOR SHARE;

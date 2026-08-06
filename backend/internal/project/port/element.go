@@ -1,6 +1,8 @@
 package port
 
 import (
+	"strings"
+
 	"github.com/DaniilSintsov/interactive-onboarding/backend/internal/project/entity"
 	"github.com/DaniilSintsov/interactive-onboarding/backend/internal/project/errs"
 	"github.com/google/uuid"
@@ -21,7 +23,15 @@ type UpdateElementParams struct {
 	Description *string
 }
 
-func (params UpdateElementParams) Validate() error {
+func getStringFromPtr(s *string) string {
+	if s == nil {
+		return "empty"
+	}
+	return *s
+}
+
+func (params *UpdateElementParams) Validate() error {
+	params.Normalize()
 	if params.ProjectID == uuid.Nil {
 		return errs.ErrElementProjectIDRequired
 	}
@@ -31,12 +41,21 @@ func (params UpdateElementParams) Validate() error {
 	if params.Key == nil && params.Label == nil && params.Description == nil {
 		return errs.ErrEmptyElementUpdateParams
 	}
-	return nil
+	return entity.CheckElementFields(
+		getStringFromPtr(params.Key),
+		getStringFromPtr(params.Label),
+		getStringFromPtr(params.Description),
+	)
 }
 
-type ListProjectsResult struct {
-	Projects []entity.Project
-	Total    int64
-	Page     int
-	PageSize int
+func (params *UpdateElementParams) Normalize() {
+	if params.Key != nil {
+		*params.Key = strings.TrimSpace(*params.Key)
+	}
+	if params.Label != nil {
+		*params.Label = strings.TrimSpace(*params.Label)
+	}
+	if params.Description != nil {
+		*params.Description = strings.TrimSpace(*params.Description)
+	}
 }

@@ -6,9 +6,10 @@ var (
 	ErrProjectNotFound         = errors.New("project not found")
 	ErrProjectKeyAlreadyExists = errors.New("project key already exists")
 	ErrProjectIDRequired       = errors.New("project ID is required")
+	ErrFailedGenerateUniqueKey = errors.New("failed to generate unique key")
 
-	ErrPageInvalid     = errors.New("page is invalid")
-	ErrPageSizeInvalid = errors.New("page size is invalid")
+	ErrLimitInvalid  = errors.New("limit is invalid")
+	ErrOffsetInvalid = errors.New("offset is invalid")
 
 	ErrElementNotFound          = errors.New("element not found")
 	ErrElementKeyAlreadyExists  = errors.New("element key already exists")

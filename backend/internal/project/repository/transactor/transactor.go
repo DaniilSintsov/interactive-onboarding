@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 )
@@ -44,7 +45,13 @@ func (t *transactorImpl) WithTx(
 	}
 
 	defer func() {
-		_ = tx.Rollback(ctx)
+		rollbackCtx, cancel := context.WithTimeout(
+			context.WithoutCancel(ctx),
+			5*time.Second,
+		)
+		defer cancel()
+
+		_ = tx.Rollback(rollbackCtx)
 	}()
 
 	ctx = injectTx(ctx, tx)

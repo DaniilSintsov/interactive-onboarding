@@ -128,7 +128,7 @@ FROM onboarding.elements
 WHERE id = $1
   AND project_id = $2
   AND deleted_at IS NULL
-FOR UPDATE
+    FOR UPDATE
 `
 
 type LockActiveElementParams struct {
