@@ -7,6 +7,7 @@ import (
 
 	"github.com/DaniilSintsov/interactive-onboarding/backend/internal/project/entity"
 	"github.com/DaniilSintsov/interactive-onboarding/backend/internal/project/errs"
+	"github.com/DaniilSintsov/interactive-onboarding/backend/internal/project/repository/model"
 	sqlc "github.com/DaniilSintsov/interactive-onboarding/backend/internal/project/repository/postgres/element/sqlc"
 	"github.com/DaniilSintsov/interactive-onboarding/backend/internal/project/repository/transactor"
 	"github.com/google/uuid"
@@ -116,25 +117,16 @@ func (repo *elementRepository) Create(
 	}, nil
 }
 
-type UpdateElementParams struct {
-	ProjectID   uuid.UUID
-	ElementID   uuid.UUID
-	Key         *string
-	Label       *string
-	Description *string
-}
-
-// Update TODO: использовать параметры чтобы сделать возможным передавать часть полей
 func (repo *elementRepository) Update(
 	ctx context.Context,
-	element entity.Element,
+	params model.UpdateElementParams,
 ) (entity.Element, error) {
 	updatedElement, err := repo.getQueries(ctx).UpdateElement(ctx, sqlc.UpdateElementParams{
-		ProjectID:   element.ProjectID,
-		ElementID:   element.ID,
-		Key:         textFromPtr(&element.Key),
-		Label:       textFromPtr(&element.Label),
-		Description: textFromPtr(&element.Description),
+		ProjectID:   params.ProjectID,
+		ElementID:   params.ElementID,
+		Key:         textFromPtr(params.Key),
+		Label:       textFromPtr(params.Label),
+		Description: textFromPtr(params.Description),
 	})
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
