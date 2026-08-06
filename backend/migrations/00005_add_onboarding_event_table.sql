@@ -3,8 +3,8 @@ CREATE TABLE "OnboardingEvent" (
     "session_id" uuid NOT NULL,
     "step_id" uuid,
     "type" text NOT NULL,
-    "data" json NOT NULL,
-    "occured_at" timestamp NOT NULL,
+    "data" jsonb NOT NULL,
+    "occurred_at" timestamp NOT NULL,
     "received_at" timestamp NOT NULL,
     PRIMARY KEY ("event_id"),
 
