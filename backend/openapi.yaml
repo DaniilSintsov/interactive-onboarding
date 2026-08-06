@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: Interactive Onboarding API
-  version: 0.4.0
+  version: 0.9.0
   description: 'API MVP-платформы интерактивного онбординга: управление проектами, элементами интерфейса, сценариями
     и шагами, Runtime API для SDK, Tracking, аналитика и PDF-отчёты.'
 servers:
@@ -54,8 +54,12 @@ paths:
           $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '409':
+          $ref: '#/components/responses/Conflict'
         '422':
           $ref: '#/components/responses/ValidationError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
       description: Создаёт проект, выдаёт project_key и сохраняет первоначальный список элементов интерфейса.
     get:
       tags:
@@ -74,8 +78,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ProjectListResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
       description: Возвращает проекты с пагинацией через параметры limit и offset.
   /api/v1/projects/{projectId}:
     parameters:
@@ -94,10 +102,14 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ProjectWithElements'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '404':
           $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
       description: Возвращает проект вместе с его элементами интерфейса.
     patch:
       tags:
@@ -127,7 +139,31 @@ paths:
           $ref: '#/components/responses/NotFound'
         '422':
           $ref: '#/components/responses/ValidationError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
       description: Частично изменяет настройки проекта.
+    delete:
+      tags:
+        - Projects
+      operationId: deleteProject
+      summary: Удалить проект
+      description: |
+        Мягко удаляет проект. Удалённый проект перестаёт возвращаться
+        административными ручками и не используется Runtime.
+        Связанные элементы, сценарии, сессии и события физически сохраняются.
+      security:
+        - AdminBearer: []
+      responses:
+        '204':
+          description: Проект мягко удалён
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
 
   # ============================================================================
   # Elements
@@ -151,10 +187,14 @@ paths:
                 type: array
                 items:
                   $ref: '#/components/schemas/Element'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '404':
           $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
       description: Возвращает все элементы проекта одним массивом без пагинации. Список используется при выборе целевого
         элемента для шага сценария.
     post:
@@ -187,6 +227,8 @@ paths:
           $ref: '#/components/responses/Conflict'
         '422':
           $ref: '#/components/responses/ValidationError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
       description: Создаёт новый элемент интерфейса в указанном проекте.
   /api/v1/projects/{projectId}/elements/{elementId}:
     parameters:
@@ -222,18 +264,23 @@ paths:
           $ref: '#/components/responses/Conflict'
         '422':
           $ref: '#/components/responses/ValidationError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
       description: Частично изменяет данные элемента интерфейса.
     delete:
       tags:
         - Elements
       operationId: deleteProjectElement
       summary: Удалить элемент проекта
-      description: Удаляет элемент, если на него не ссылается ни один шаг сценария.
+      description: |
+        Мягко удаляет элемент, если на него не ссылается ни один неудалённый
+        шаг сценария. Удалённый элемент перестаёт возвращаться
+        административными ручками и не используется Runtime.
       security:
         - AdminBearer: []
       responses:
         '204':
-          description: Элемент удалён
+          description: Элемент мягко удалён
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':
@@ -242,6 +289,8 @@ paths:
           $ref: '#/components/responses/NotFound'
         '409':
           $ref: '#/components/responses/Conflict'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
 
   # ============================================================================
   # Scenarios
@@ -944,6 +993,12 @@ components:
             $ref: '#/components/schemas/ErrorResponse'
     ValidationError:
       description: Нарушены правила валидации или бизнес-правила
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    InternalServerError:
+      description: Внутренняя ошибка сервера
       content:
         application/json:
           schema:
