@@ -1,6 +1,7 @@
 package port
 
 import (
+	"github.com/DaniilSintsov/interactive-onboarding/backend/internal/project/entity"
 	"github.com/DaniilSintsov/interactive-onboarding/backend/internal/project/errs"
 	"github.com/google/uuid"
 )
@@ -31,4 +32,11 @@ func (params UpdateElementParams) Validate() error {
 		return errs.ErrEmptyElementUpdateParams
 	}
 	return nil
+}
+
+type ListProjectsResult struct {
+	Projects []entity.Project
+	Total    int64
+	Page     int
+	PageSize int
 }

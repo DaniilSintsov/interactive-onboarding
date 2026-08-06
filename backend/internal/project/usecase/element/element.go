@@ -1,4 +1,4 @@
-package usecase
+package element
 
 import (
 	"context"
@@ -44,7 +44,7 @@ type elementService struct {
 	logger              *zap.Logger
 }
 
-func New(
+func NewElementService(
 	elementRepository elementRepository,
 	projectRepository projectRepository,
 	elementUsageChecker elementUsageChecker,
@@ -60,7 +60,7 @@ func New(
 	}
 }
 
-func (e *elementService) List(
+func (service *elementService) List(
 	ctx context.Context,
 	projectID uuid.UUID,
 ) ([]entity.Element, error) {
@@ -70,17 +70,17 @@ func (e *elementService) List(
 
 	resultElements := make([]entity.Element, 0)
 
-	err := e.transactor.WithTx(ctx, func(ctx context.Context) error {
-		if err := e.projectRepository.LockActive(ctx, projectID); err != nil {
+	err := service.transactor.WithTx(ctx, func(ctx context.Context) error {
+		if err := service.projectRepository.LockActive(ctx, projectID); err != nil {
 			if errors.Is(err, errs.ErrProjectNotFound) {
 				return errs.ErrProjectNotFound
 			}
 			return fmt.Errorf("element usecase - list: %w", err)
 		}
 
-		elements, err := e.elementRepository.ListByProjectID(ctx, projectID)
+		elements, err := service.elementRepository.ListByProjectID(ctx, projectID)
 		if err != nil {
-			return e.wrapListError(err, projectID)
+			return service.wrapListError(err, projectID)
 		}
 
 		resultElements = append(resultElements, elements...)
@@ -93,7 +93,7 @@ func (e *elementService) List(
 	return resultElements, nil
 }
 
-func (e *elementService) Create(
+func (service *elementService) Create(
 	ctx context.Context,
 	params port.CreateElementParams,
 ) (entity.Element, error) {
@@ -110,8 +110,8 @@ func (e *elementService) Create(
 
 	var resultElement entity.Element
 
-	err := e.transactor.WithTx(ctx, func(ctx context.Context) error {
-		if err := e.projectRepository.LockActive(ctx, element.ProjectID); err != nil {
+	err := service.transactor.WithTx(ctx, func(ctx context.Context) error {
+		if err := service.projectRepository.LockActive(ctx, element.ProjectID); err != nil {
 			if errors.Is(err, errs.ErrProjectNotFound) {
 				return errs.ErrProjectNotFound
 			}
@@ -119,13 +119,13 @@ func (e *elementService) Create(
 			return fmt.Errorf("element usecase - create: %w", err)
 		}
 
-		createdElement, err := e.elementRepository.Create(ctx, element)
+		createdElement, err := service.elementRepository.Create(ctx, element)
 		if err != nil {
 			if errors.Is(err, errs.ErrElementKeyAlreadyExists) ||
 				errors.Is(err, errs.ErrProjectNotFound) {
 				return err
 			}
-			return e.wrapCreateError(err, params)
+			return service.wrapCreateError(err, params)
 		}
 
 		resultElement = createdElement
@@ -139,7 +139,7 @@ func (e *elementService) Create(
 	return resultElement, nil
 }
 
-func (e *elementService) Update(
+func (service *elementService) Update(
 	ctx context.Context,
 	params port.UpdateElementParams,
 ) (entity.Element, error) {
@@ -149,8 +149,8 @@ func (e *elementService) Update(
 
 	var resultElement entity.Element
 
-	err := e.transactor.WithTx(ctx, func(ctx context.Context) error {
-		if err := e.projectRepository.LockActive(ctx, params.ProjectID); err != nil {
+	err := service.transactor.WithTx(ctx, func(ctx context.Context) error {
+		if err := service.projectRepository.LockActive(ctx, params.ProjectID); err != nil {
 			if errors.Is(err, errs.ErrProjectNotFound) {
 				return errs.ErrProjectNotFound
 			}
@@ -158,7 +158,7 @@ func (e *elementService) Update(
 			return fmt.Errorf("element usecase - update: %w", err)
 		}
 
-		updatedElement, err := e.elementRepository.Update(ctx, model.UpdateElementParams{
+		updatedElement, err := service.elementRepository.Update(ctx, model.UpdateElementParams{
 			ProjectID:   params.ProjectID,
 			ElementID:   params.ElementID,
 			Key:         params.Key,
@@ -172,7 +172,7 @@ func (e *elementService) Update(
 			if errors.Is(err, errs.ErrElementNotFound) {
 				return err
 			}
-			return e.wrapUpdateError(err, params)
+			return service.wrapUpdateError(err, params)
 		}
 
 		resultElement = updatedElement
@@ -185,7 +185,7 @@ func (e *elementService) Update(
 	return resultElement, nil
 }
 
-func (e *elementService) Delete(
+func (service *elementService) Delete(
 	ctx context.Context,
 	projectID uuid.UUID,
 	elementID uuid.UUID,
@@ -198,8 +198,8 @@ func (e *elementService) Delete(
 		return fmt.Errorf("element usecase - delete: %w", errs.ErrElementIDRequired)
 	}
 
-	err := e.transactor.WithTx(ctx, func(ctx context.Context) error {
-		if err := e.projectRepository.LockActive(ctx, projectID); err != nil {
+	err := service.transactor.WithTx(ctx, func(ctx context.Context) error {
+		if err := service.projectRepository.LockActive(ctx, projectID); err != nil {
 			if errors.Is(err, errs.ErrProjectNotFound) {
 				return errs.ErrProjectNotFound
 			}
@@ -207,7 +207,7 @@ func (e *elementService) Delete(
 			return fmt.Errorf("element usecase - delete: %w", err)
 		}
 
-		if err := e.elementRepository.LockActive(ctx, projectID, elementID); err != nil {
+		if err := service.elementRepository.LockActive(ctx, projectID, elementID); err != nil {
 			if errors.Is(err, errs.ErrElementNotFound) {
 				return errs.ErrElementNotFound
 			}
@@ -215,21 +215,21 @@ func (e *elementService) Delete(
 			return fmt.Errorf("element usecase - delete: %w", err)
 		}
 
-		used, err := e.elementUsageChecker.IsElementUsedBySteps(ctx, elementID)
+		used, err := service.elementUsageChecker.IsElementUsedBySteps(ctx, elementID)
 		if err != nil {
-			return e.wrapDeleteError(err, projectID, elementID)
+			return service.wrapDeleteError(err, projectID, elementID)
 		}
 
 		if used {
 			return fmt.Errorf("element usecase - delete: %w", errs.ErrElementInUse)
 		}
 
-		err = e.elementRepository.Delete(ctx, projectID, elementID)
+		err = service.elementRepository.Delete(ctx, projectID, elementID)
 		if err != nil {
 			if errors.Is(err, errs.ErrElementNotFound) {
 				return err
 			}
-			return e.wrapDeleteError(err, projectID, elementID)
+			return service.wrapDeleteError(err, projectID, elementID)
 		}
 
 		return nil
@@ -241,8 +241,8 @@ func (e *elementService) Delete(
 	return nil
 }
 
-func (e *elementService) wrapListError(err error, projectID uuid.UUID) error {
-	e.logger.Error("element usecase - list failed",
+func (service *elementService) wrapListError(err error, projectID uuid.UUID) error {
+	service.logger.Error("element usecase - list failed",
 		zap.String("project_id", projectID.String()),
 		zap.Error(err),
 	)
@@ -250,8 +250,8 @@ func (e *elementService) wrapListError(err error, projectID uuid.UUID) error {
 	return fmt.Errorf("element usecase - list: project_id=%v: %w", projectID, err)
 }
 
-func (e *elementService) wrapCreateError(err error, params port.CreateElementParams) error {
-	e.logger.Error("element usecase - create failed",
+func (service *elementService) wrapCreateError(err error, params port.CreateElementParams) error {
+	service.logger.Error("element usecase - create failed",
 		zap.String("project_id", params.ProjectID.String()),
 		zap.String("key", params.Key),
 		zap.Error(err),
@@ -267,8 +267,8 @@ func getStringFromPtr(str *string) string {
 	return *str
 }
 
-func (e *elementService) wrapUpdateError(err error, params port.UpdateElementParams) error {
-	e.logger.Error("element usecase - update failed",
+func (service *elementService) wrapUpdateError(err error, params port.UpdateElementParams) error {
+	service.logger.Error("element usecase - update failed",
 		zap.String("project_id", params.ProjectID.String()),
 		zap.String("element_id", params.ElementID.String()),
 		zap.String("key", getStringFromPtr(params.Key)),
@@ -278,8 +278,8 @@ func (e *elementService) wrapUpdateError(err error, params port.UpdateElementPar
 	return fmt.Errorf("element usecase - update: project_id=%v element_id=%v: %w", params.ProjectID, params.ElementID, err)
 }
 
-func (e *elementService) wrapDeleteError(err error, projectID uuid.UUID, elementID uuid.UUID) error {
-	e.logger.Error("element usecase - delete failed",
+func (service *elementService) wrapDeleteError(err error, projectID uuid.UUID, elementID uuid.UUID) error {
+	service.logger.Error("element usecase - delete failed",
 		zap.String("project_id", projectID.String()),
 		zap.String("element_id", elementID.String()),
 		zap.Error(err),
