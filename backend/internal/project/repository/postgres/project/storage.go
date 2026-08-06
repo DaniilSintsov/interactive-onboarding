@@ -8,20 +8,11 @@ import (
 	"github.com/DaniilSintsov/interactive-onboarding/backend/internal/project/entity"
 	"github.com/DaniilSintsov/interactive-onboarding/backend/internal/project/errs"
 	sqlc "github.com/DaniilSintsov/interactive-onboarding/backend/internal/project/repository/postgres/project/sqlc"
+	"github.com/DaniilSintsov/interactive-onboarding/backend/internal/project/repository/transactor"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 )
-
-type projectRepository struct {
-	queries *sqlc.Queries
-}
-
-func NewRepository(db sqlc.DBTX) *projectRepository {
-	return &projectRepository{
-		queries: sqlc.New(db),
-	}
-}
 
 const (
 	uniqueViolationCode = "23505"
@@ -29,11 +20,38 @@ const (
 	projectKeyUniqueConstraint = "projects_project_key_unique"
 )
 
+type (
+	DB interface {
+		Begin(ctx context.Context) (pgx.Tx, error)
+		sqlc.DBTX
+	}
+)
+
+type projectRepository struct {
+	queries    *sqlc.Queries
+	transactor transactor.Transactor
+}
+
+func NewRepository(db DB) *projectRepository {
+	return &projectRepository{
+		queries:    sqlc.New(db),
+		transactor: transactor.NewTransactor(db),
+	}
+}
+
+func (p *projectRepository) getQueries(ctx context.Context) *sqlc.Queries {
+	if tx, err := transactor.ExtractTx(ctx); err == nil {
+		return p.queries.WithTx(tx)
+	}
+
+	return p.queries
+}
+
 func (repo *projectRepository) Create(
 	ctx context.Context,
 	project entity.Project,
 ) (entity.Project, error) {
-	createdProject, err := repo.queries.CreateProject(ctx, sqlc.CreateProjectParams{
+	createdProject, err := repo.getQueries(ctx).CreateProject(ctx, sqlc.CreateProjectParams{
 		Name:       project.Name,
 		ProjectKey: project.ProjectKey,
 	})
@@ -64,7 +82,7 @@ func (repo *projectRepository) Update(
 	projectID uuid.UUID,
 	name string,
 ) (entity.Project, error) {
-	updatedProject, err := repo.queries.UpdateProject(ctx, sqlc.UpdateProjectParams{
+	updatedProject, err := repo.getQueries(ctx).UpdateProject(ctx, sqlc.UpdateProjectParams{
 		Name:      name,
 		ProjectID: projectID,
 	})
@@ -89,7 +107,7 @@ func (repo *projectRepository) Delete(
 	ctx context.Context,
 	projectID uuid.UUID,
 ) error {
-	_, err := repo.queries.DeleteProject(ctx, projectID)
+	_, err := repo.getQueries(ctx).DeleteProject(ctx, projectID)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return errs.ErrProjectNotFound
@@ -106,7 +124,7 @@ func (repo *projectRepository) List(
 	limit int32,
 	offset int32,
 ) ([]entity.Project, error) {
-	rows, err := repo.queries.ListProjects(ctx, sqlc.ListProjectsParams{
+	rows, err := repo.getQueries(ctx).ListProjects(ctx, sqlc.ListProjectsParams{
 		PageLimit:  limit,
 		PageOffset: offset,
 	})
@@ -131,7 +149,7 @@ func (repo *projectRepository) List(
 func (repo *projectRepository) Count(
 	ctx context.Context,
 ) (int64, error) {
-	count, err := repo.queries.CountProjects(ctx)
+	count, err := repo.getQueries(ctx).CountProjects(ctx)
 	if err != nil {
 		return 0, fmt.Errorf("project repository - count: %w", err)
 	}
@@ -143,7 +161,7 @@ func (repo *projectRepository) GetByID(
 	ctx context.Context,
 	projectID uuid.UUID,
 ) (entity.Project, error) {
-	project, err := repo.queries.GetProjectByID(ctx, projectID)
+	project, err := repo.getQueries(ctx).GetProjectByID(ctx, projectID)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return entity.Project{}, errs.ErrProjectNotFound
@@ -165,7 +183,7 @@ func (repo *projectRepository) GetIDByKey(
 	ctx context.Context,
 	projectKey string,
 ) (uuid.UUID, error) {
-	id, err := repo.queries.GetProjectIDByKey(ctx, projectKey)
+	id, err := repo.getQueries(ctx).GetProjectIDByKey(ctx, projectKey)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return uuid.Nil, errs.ErrProjectNotFound

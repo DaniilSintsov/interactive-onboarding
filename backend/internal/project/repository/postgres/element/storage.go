@@ -8,21 +8,12 @@ import (
 	"github.com/DaniilSintsov/interactive-onboarding/backend/internal/project/entity"
 	"github.com/DaniilSintsov/interactive-onboarding/backend/internal/project/errs"
 	sqlc "github.com/DaniilSintsov/interactive-onboarding/backend/internal/project/repository/postgres/element/sqlc"
+	"github.com/DaniilSintsov/interactive-onboarding/backend/internal/project/repository/transactor"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
 )
-
-type elementRepository struct {
-	queries *sqlc.Queries
-}
-
-func NewRepository(db sqlc.DBTX) *elementRepository {
-	return &elementRepository{
-		queries: sqlc.New(db),
-	}
-}
 
 const (
 	uniqueViolationCode     = "23505"
@@ -32,21 +23,38 @@ const (
 	elementProjectFKConstraint = "elements_project_fk"
 )
 
-func textFromPtr(value *string) pgtype.Text {
-	if value == nil {
-		return pgtype.Text{
-			Valid: false,
-		}
+type (
+	DB interface {
+		Begin(ctx context.Context) (pgx.Tx, error)
+		sqlc.DBTX
 	}
+)
 
-	return pgtype.Text{
-		String: *value,
-		Valid:  true,
+type elementRepository struct {
+	queries    *sqlc.Queries
+	transactor transactor.Transactor
+}
+
+func NewRepository(db DB) *elementRepository {
+	return &elementRepository{
+		queries:    sqlc.New(db),
+		transactor: transactor.NewTransactor(db),
 	}
 }
 
-func (repo *elementRepository) ListByProjectID(ctx context.Context, projectID uuid.UUID) ([]entity.Element, error) {
-	rows, err := repo.queries.ListElementsByProjectID(ctx, projectID)
+func (e *elementRepository) getQueries(ctx context.Context) *sqlc.Queries {
+	if tx, err := transactor.ExtractTx(ctx); err == nil {
+		return e.queries.WithTx(tx)
+	}
+
+	return e.queries
+}
+
+func (repo *elementRepository) ListByProjectID(
+	ctx context.Context,
+	projectID uuid.UUID,
+) ([]entity.Element, error) {
+	rows, err := repo.getQueries(ctx).ListElementsByProjectID(ctx, projectID)
 	if err != nil {
 		return nil, fmt.Errorf("element repository - list by project id: %w", err)
 	}
@@ -71,7 +79,7 @@ func (repo *elementRepository) Create(
 	ctx context.Context,
 	element entity.Element,
 ) (entity.Element, error) {
-	createdElement, err := repo.queries.CreateElement(ctx, sqlc.CreateElementParams{
+	createdElement, err := repo.getQueries(ctx).CreateElement(ctx, sqlc.CreateElementParams{
 		ProjectID:   element.ProjectID,
 		Key:         element.Key,
 		Label:       element.Label,
@@ -121,7 +129,7 @@ func (repo *elementRepository) Update(
 	ctx context.Context,
 	element entity.Element,
 ) (entity.Element, error) {
-	updatedElement, err := repo.queries.UpdateElement(ctx, sqlc.UpdateElementParams{
+	updatedElement, err := repo.getQueries(ctx).UpdateElement(ctx, sqlc.UpdateElementParams{
 		ProjectID:   element.ProjectID,
 		ElementID:   element.ID,
 		Key:         textFromPtr(&element.Key),
@@ -161,7 +169,7 @@ func (repo *elementRepository) Delete(
 	projectID uuid.UUID,
 	elementID uuid.UUID,
 ) error {
-	_, err := repo.queries.DeleteElement(ctx, sqlc.DeleteElementParams{
+	_, err := repo.getQueries(ctx).DeleteElement(ctx, sqlc.DeleteElementParams{
 		ProjectID: projectID,
 		ElementID: elementID,
 	})
@@ -174,4 +182,17 @@ func (repo *elementRepository) Delete(
 	}
 
 	return nil
+}
+
+func textFromPtr(value *string) pgtype.Text {
+	if value == nil {
+		return pgtype.Text{
+			Valid: false,
+		}
+	}
+
+	return pgtype.Text{
+		String: *value,
+		Valid:  true,
+	}
 }
