@@ -20,7 +20,53 @@ type errorMapping struct {
 	Log      bool
 }
 
+type requestError struct {
+	code    string
+	message string
+	details map[string]any
+	cause   error
+}
+
+func (e *requestError) Error() string {
+	if e.cause == nil {
+		return e.message
+	}
+
+	return e.message + ": " + e.cause.Error()
+}
+
+func (e *requestError) Unwrap() error {
+	return e.cause
+}
+
+func newRequestError(
+	code string,
+	message string,
+	details map[string]any,
+	cause error,
+) error {
+	return &requestError{
+		code:    code,
+		message: message,
+		details: details,
+		cause:   cause,
+	}
+}
+
 func mapError(err error) errorMapping {
+	var requestErr *requestError
+	if errors.As(err, &requestErr) {
+		return errorMapping{
+			Status: http.StatusBadRequest,
+			Response: errorResponse{
+				Code:    requestErr.code,
+				Message: requestErr.message,
+				Details: requestErr.details,
+			},
+			Log: false,
+		}
+	}
+
 	switch {
 	case errors.Is(err, projecterrs.ErrProjectNotFound):
 		return newErrorMapping(http.StatusNotFound, "project_not_found", "project not found", false)

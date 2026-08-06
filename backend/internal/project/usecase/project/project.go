@@ -240,7 +240,7 @@ func (service *projectService) Update(
 
 		elements, err := service.elementRepository.ListByProjectID(ctx, updatedProject.ID)
 		if err != nil {
-			return service.wrapGetByIDError(err, projectID)
+			return service.wrapUpdateError(err, projectID, name)
 		}
 
 		result = port.ProjectWithElements{
