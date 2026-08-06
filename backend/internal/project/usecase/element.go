@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/DaniilSintsov/interactive-onboarding/backend/internal/project/entity"
 	"github.com/DaniilSintsov/interactive-onboarding/backend/internal/project/errs"
@@ -19,14 +20,15 @@ type (
 		Create(ctx context.Context, element entity.Element) (entity.Element, error)
 		Update(ctx context.Context, params model.UpdateElementParams) (entity.Element, error)
 		Delete(ctx context.Context, projectID uuid.UUID, elementID uuid.UUID) error
+		LockActive(ctx context.Context, projectID uuid.UUID, elementID uuid.UUID) error
 	}
 
 	projectRepository interface {
-		GetByID(ctx context.Context, projectID uuid.UUID) (entity.Project, error)
+		LockActive(ctx context.Context, projectID uuid.UUID) error
 	}
 
 	elementUsageChecker interface {
-		IsElementUsed(ctx context.Context, elementID uuid.UUID) (bool, error)
+		IsElementUsedBySteps(ctx context.Context, elementID uuid.UUID) (bool, error)
 	}
 
 	transactor interface {
@@ -66,16 +68,29 @@ func (e *elementService) List(
 		return nil, fmt.Errorf("element usecase - list: %w", errs.ErrElementProjectIDRequired)
 	}
 
-	if _, err := e.projectRepository.GetByID(ctx, projectID); err != nil {
-		return nil, fmt.Errorf("element usecase - list: %w", errs.ErrProjectNotFound)
-	}
+	resultElements := make([]entity.Element, 0)
 
-	elements, err := e.elementRepository.ListByProjectID(ctx, projectID)
+	err := e.transactor.WithTx(ctx, func(ctx context.Context) error {
+		if err := e.projectRepository.LockActive(ctx, projectID); err != nil {
+			if errors.Is(err, errs.ErrProjectNotFound) {
+				return errs.ErrProjectNotFound
+			}
+			return fmt.Errorf("element usecase - list: %w", err)
+		}
+
+		elements, err := e.elementRepository.ListByProjectID(ctx, projectID)
+		if err != nil {
+			return e.wrapListError(err, projectID)
+		}
+
+		resultElements = append(resultElements, elements...)
+		return nil
+	})
 	if err != nil {
-		return nil, e.wrapListError(err, projectID)
+		return nil, err
 	}
 
-	return elements, nil
+	return resultElements, nil
 }
 
 func (e *elementService) Create(
@@ -84,34 +99,36 @@ func (e *elementService) Create(
 ) (entity.Element, error) {
 	element := entity.Element{
 		ProjectID:   params.ProjectID,
-		Key:         params.Key,
-		Label:       params.Label,
-		Description: params.Description,
+		Key:         strings.TrimSpace(params.Key),
+		Label:       strings.TrimSpace(params.Label),
+		Description: strings.TrimSpace(params.Description),
 	}
 
 	if err := element.Validate(); err != nil {
 		return entity.Element{}, fmt.Errorf("element usecase - create: validation error: %w", err)
 	}
 
-	var resultElement *entity.Element
+	var resultElement entity.Element
 
 	err := e.transactor.WithTx(ctx, func(ctx context.Context) error {
-		if _, err := e.projectRepository.GetByID(ctx, element.ProjectID); err != nil {
-			return fmt.Errorf("element usecase - create: %w", errs.ErrProjectNotFound)
+		if err := e.projectRepository.LockActive(ctx, element.ProjectID); err != nil {
+			if errors.Is(err, errs.ErrProjectNotFound) {
+				return errs.ErrProjectNotFound
+			}
+
+			return fmt.Errorf("element usecase - create: %w", err)
 		}
 
 		createdElement, err := e.elementRepository.Create(ctx, element)
 		if err != nil {
-			if errors.Is(err, errs.ErrElementKeyAlreadyExists) {
-				return err
-			}
-			if errors.Is(err, errs.ErrProjectNotFound) {
+			if errors.Is(err, errs.ErrElementKeyAlreadyExists) ||
+				errors.Is(err, errs.ErrProjectNotFound) {
 				return err
 			}
 			return e.wrapCreateError(err, params)
 		}
 
-		*resultElement = createdElement
+		resultElement = createdElement
 
 		return nil
 	})
@@ -119,7 +136,7 @@ func (e *elementService) Create(
 		return entity.Element{}, err
 	}
 
-	return *resultElement, nil
+	return resultElement, nil
 }
 
 func (e *elementService) Update(
@@ -130,28 +147,42 @@ func (e *elementService) Update(
 		return entity.Element{}, fmt.Errorf("element usecase - update: validation error: %w", err)
 	}
 
-	if _, err := e.projectRepository.GetByID(ctx, params.ProjectID); err != nil {
-		return entity.Element{}, fmt.Errorf("element usecase - update: %w", errs.ErrProjectNotFound)
-	}
+	var resultElement entity.Element
 
-	updatedElement, err := e.elementRepository.Update(ctx, model.UpdateElementParams{
-		ProjectID:   params.ProjectID,
-		ElementID:   params.ElementID,
-		Key:         params.Key,
-		Label:       params.Label,
-		Description: params.Description,
+	err := e.transactor.WithTx(ctx, func(ctx context.Context) error {
+		if err := e.projectRepository.LockActive(ctx, params.ProjectID); err != nil {
+			if errors.Is(err, errs.ErrProjectNotFound) {
+				return errs.ErrProjectNotFound
+			}
+
+			return fmt.Errorf("element usecase - update: %w", err)
+		}
+
+		updatedElement, err := e.elementRepository.Update(ctx, model.UpdateElementParams{
+			ProjectID:   params.ProjectID,
+			ElementID:   params.ElementID,
+			Key:         params.Key,
+			Label:       params.Label,
+			Description: params.Description,
+		})
+		if err != nil {
+			if errors.Is(err, errs.ErrElementKeyAlreadyExists) {
+				return err
+			}
+			if errors.Is(err, errs.ErrElementNotFound) {
+				return err
+			}
+			return e.wrapUpdateError(err, params)
+		}
+
+		resultElement = updatedElement
+		return nil
 	})
 	if err != nil {
-		if errors.Is(err, errs.ErrElementKeyAlreadyExists) {
-			return entity.Element{}, err
-		}
-		if errors.Is(err, errs.ErrElementNotFound) {
-			return entity.Element{}, err
-		}
-		return entity.Element{}, e.wrapUpdateError(err, params)
+		return entity.Element{}, err
 	}
 
-	return updatedElement, nil
+	return resultElement, nil
 }
 
 func (e *elementService) Delete(
@@ -168,11 +199,23 @@ func (e *elementService) Delete(
 	}
 
 	err := e.transactor.WithTx(ctx, func(ctx context.Context) error {
-		if _, err := e.projectRepository.GetByID(ctx, projectID); err != nil {
-			return fmt.Errorf("element usecase - delete: %w", errs.ErrProjectNotFound)
+		if err := e.projectRepository.LockActive(ctx, projectID); err != nil {
+			if errors.Is(err, errs.ErrProjectNotFound) {
+				return errs.ErrProjectNotFound
+			}
+
+			return fmt.Errorf("element usecase - delete: %w", err)
 		}
 
-		used, err := e.elementUsageChecker.IsElementUsed(ctx, elementID)
+		if err := e.elementRepository.LockActive(ctx, projectID, elementID); err != nil {
+			if errors.Is(err, errs.ErrElementNotFound) {
+				return errs.ErrElementNotFound
+			}
+
+			return fmt.Errorf("element usecase - delete: %w", err)
+		}
+
+		used, err := e.elementUsageChecker.IsElementUsedBySteps(ctx, elementID)
 		if err != nil {
 			return e.wrapDeleteError(err, projectID, elementID)
 		}
@@ -200,26 +243,24 @@ func (e *elementService) Delete(
 
 func (e *elementService) wrapListError(err error, projectID uuid.UUID) error {
 	e.logger.Error("element usecase - list failed",
-		zap.String("projectID", projectID.String()),
+		zap.String("project_id", projectID.String()),
 		zap.Error(err),
 	)
 
-	return fmt.Errorf("element usecase - list: projectID=%v: %w ", projectID, err)
+	return fmt.Errorf("element usecase - list: project_id=%v: %w", projectID, err)
 }
 
 func (e *elementService) wrapCreateError(err error, params port.CreateElementParams) error {
 	e.logger.Error("element usecase - create failed",
-		zap.String("projectID", params.ProjectID.String()),
+		zap.String("project_id", params.ProjectID.String()),
 		zap.String("key", params.Key),
-		zap.String("label", params.Label),
-		zap.String("description", params.Description),
 		zap.Error(err),
 	)
 
-	return fmt.Errorf("element usecase - create: params=%v: %w", params, err)
+	return fmt.Errorf("element usecase - create: project_id=%v key=%s: %w", params.ProjectID, params.Key, err)
 }
 
-func getStingFromPtr(str *string) string {
+func getStringFromPtr(str *string) string {
 	if str == nil {
 		return ""
 	}
@@ -228,11 +269,9 @@ func getStingFromPtr(str *string) string {
 
 func (e *elementService) wrapUpdateError(err error, params port.UpdateElementParams) error {
 	e.logger.Error("element usecase - update failed",
-		zap.String("projectID", params.ProjectID.String()),
-		zap.String("elementID", params.ElementID.String()),
-		zap.String("key", getStingFromPtr(params.Key)),
-		zap.String("label", getStingFromPtr(params.Label)),
-		zap.String("description", getStingFromPtr(params.Description)),
+		zap.String("project_id", params.ProjectID.String()),
+		zap.String("element_id", params.ElementID.String()),
+		zap.String("key", getStringFromPtr(params.Key)),
 		zap.Error(err),
 	)
 
@@ -241,10 +280,10 @@ func (e *elementService) wrapUpdateError(err error, params port.UpdateElementPar
 
 func (e *elementService) wrapDeleteError(err error, projectID uuid.UUID, elementID uuid.UUID) error {
 	e.logger.Error("element usecase - delete failed",
-		zap.String("projectID", projectID.String()),
-		zap.String("elementID", elementID.String()),
+		zap.String("project_id", projectID.String()),
+		zap.String("element_id", elementID.String()),
 		zap.Error(err),
 	)
 
-	return fmt.Errorf("element usecase - delete: projectID=%v element_id=%v: %w ", projectID, elementID, err)
+	return fmt.Errorf("element usecase - delete: project_id=%v element_id=%v: %w", projectID, elementID, err)
 }

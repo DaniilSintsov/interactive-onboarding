@@ -14,6 +14,7 @@ type Querier interface {
 	CreateElement(ctx context.Context, arg CreateElementParams) (CreateElementRow, error)
 	DeleteElement(ctx context.Context, arg DeleteElementParams) (uuid.UUID, error)
 	ListElementsByProjectID(ctx context.Context, projectID uuid.UUID) ([]ListElementsByProjectIDRow, error)
+	LockActiveElement(ctx context.Context, arg LockActiveElementParams) (uuid.UUID, error)
 	UpdateElement(ctx context.Context, arg UpdateElementParams) (UpdateElementRow, error)
 }
 

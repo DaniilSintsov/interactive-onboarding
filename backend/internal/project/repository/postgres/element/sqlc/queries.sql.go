@@ -122,6 +122,27 @@ func (q *Queries) ListElementsByProjectID(ctx context.Context, projectID uuid.UU
 	return items, nil
 }
 
+const lockActiveElement = `-- name: LockActiveElement :one
+SELECT id
+FROM onboarding.elements
+WHERE id = $1
+  AND project_id = $2
+  AND deleted_at IS NULL
+FOR UPDATE
+`
+
+type LockActiveElementParams struct {
+	ElementID uuid.UUID `json:"element_id"`
+	ProjectID uuid.UUID `json:"project_id"`
+}
+
+func (q *Queries) LockActiveElement(ctx context.Context, arg LockActiveElementParams) (uuid.UUID, error) {
+	row := q.db.QueryRow(ctx, lockActiveElement, arg.ElementID, arg.ProjectID)
+	var id uuid.UUID
+	err := row.Scan(&id)
+	return id, err
+}
+
 const updateElement = `-- name: UpdateElement :one
 UPDATE onboarding.elements
 SET key         = COALESCE($1, key),

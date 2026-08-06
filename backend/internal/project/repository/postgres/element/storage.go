@@ -24,22 +24,13 @@ const (
 	elementProjectFKConstraint = "elements_project_fk"
 )
 
-type (
-	DB interface {
-		Begin(ctx context.Context) (pgx.Tx, error)
-		sqlc.DBTX
-	}
-)
-
 type elementRepository struct {
-	queries    *sqlc.Queries
-	transactor transactor.Transactor
+	queries *sqlc.Queries
 }
 
-func NewRepository(db DB) *elementRepository {
+func NewRepository(db sqlc.DBTX) *elementRepository {
 	return &elementRepository{
-		queries:    sqlc.New(db),
-		transactor: transactor.NewTransactor(db),
+		queries: sqlc.New(db),
 	}
 }
 
@@ -173,6 +164,25 @@ func (repo *elementRepository) Delete(
 		return fmt.Errorf("element repository - delete: %w", err)
 	}
 
+	return nil
+}
+
+func (repo *elementRepository) LockActive(
+	ctx context.Context,
+	projectID uuid.UUID,
+	elementID uuid.UUID,
+) error {
+	_, err := repo.getQueries(ctx).LockActiveElement(ctx, sqlc.LockActiveElementParams{
+		ProjectID: projectID,
+		ElementID: elementID,
+	})
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return errs.ErrElementNotFound
+		}
+
+		return fmt.Errorf("element repository - lock active: %w", err)
+	}
 	return nil
 }
 

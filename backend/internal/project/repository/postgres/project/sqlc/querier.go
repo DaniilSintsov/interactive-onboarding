@@ -17,6 +17,7 @@ type Querier interface {
 	GetProjectByID(ctx context.Context, projectID uuid.UUID) (GetProjectByIDRow, error)
 	GetProjectIDByKey(ctx context.Context, projectKey string) (uuid.UUID, error)
 	ListProjects(ctx context.Context, arg ListProjectsParams) ([]ListProjectsRow, error)
+	LockActiveProject(ctx context.Context, projectID uuid.UUID) (uuid.UUID, error)
 	UpdateProject(ctx context.Context, arg UpdateProjectParams) (UpdateProjectRow, error)
 }
 

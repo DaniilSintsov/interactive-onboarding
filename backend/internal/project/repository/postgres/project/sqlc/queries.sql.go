@@ -162,6 +162,21 @@ func (q *Queries) ListProjects(ctx context.Context, arg ListProjectsParams) ([]L
 	return items, nil
 }
 
+const lockActiveProject = `-- name: LockActiveProject :one
+SELECT id
+FROM onboarding.projects
+WHERE id = $1
+  AND deleted_at IS NULL
+FOR SHARE
+`
+
+func (q *Queries) LockActiveProject(ctx context.Context, projectID uuid.UUID) (uuid.UUID, error) {
+	row := q.db.QueryRow(ctx, lockActiveProject, projectID)
+	var id uuid.UUID
+	err := row.Scan(&id)
+	return id, err
+}
+
 const updateProject = `-- name: UpdateProject :one
 UPDATE onboarding.projects
 SET name = $1

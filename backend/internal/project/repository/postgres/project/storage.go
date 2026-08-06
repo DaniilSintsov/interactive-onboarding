@@ -20,22 +20,13 @@ const (
 	projectKeyUniqueConstraint = "projects_project_key_unique"
 )
 
-type (
-	DB interface {
-		Begin(ctx context.Context) (pgx.Tx, error)
-		sqlc.DBTX
-	}
-)
-
 type projectRepository struct {
-	queries    *sqlc.Queries
-	transactor transactor.Transactor
+	queries *sqlc.Queries
 }
 
-func NewRepository(db DB) *projectRepository {
+func NewRepository(db sqlc.DBTX) *projectRepository {
 	return &projectRepository{
-		queries:    sqlc.New(db),
-		transactor: transactor.NewTransactor(db),
+		queries: sqlc.New(db),
 	}
 }
 
@@ -193,4 +184,19 @@ func (repo *projectRepository) GetIDByKey(
 	}
 
 	return id, nil
+}
+
+func (repo *projectRepository) LockActive(
+	ctx context.Context,
+	projectID uuid.UUID,
+) error {
+	_, err := repo.getQueries(ctx).LockActiveProject(ctx, projectID)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return errs.ErrProjectNotFound
+		}
+
+		return fmt.Errorf("project repository - lock active: %w", err)
+	}
+	return nil
 }

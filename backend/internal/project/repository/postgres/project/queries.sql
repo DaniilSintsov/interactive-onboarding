@@ -41,3 +41,10 @@ SET deleted_at = NOW()
 WHERE id = sqlc.arg(project_id)
   AND deleted_at IS NULL
 RETURNING id;
+
+-- name: LockActiveProject :one
+SELECT id
+FROM onboarding.projects
+WHERE id = sqlc.arg(project_id)
+  AND deleted_at IS NULL
+FOR SHARE;

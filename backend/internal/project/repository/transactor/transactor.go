@@ -43,23 +43,20 @@ func (t *transactorImpl) WithTx(
 		return fmt.Errorf("transactor - begin tx: %w", err)
 	}
 
-	ctx = injectTx(ctx, tx)
-
 	defer func() {
-		if err != nil {
-			_ = tx.Rollback(ctx)
-			return
-		}
-
-		if commitErr := tx.Commit(ctx); commitErr != nil {
-			err = fmt.Errorf("transactor - commit tx: %w", commitErr)
-		}
+		_ = tx.Rollback(ctx)
 	}()
+
+	ctx = injectTx(ctx, tx)
 
 	err = f(ctx)
 
 	if err != nil {
 		return fmt.Errorf("transactor - execute in tx: %w", err)
+	}
+
+	if commitErr := tx.Commit(ctx); commitErr != nil {
+		return fmt.Errorf("transactor - commit tx: %w", commitErr)
 	}
 
 	return nil

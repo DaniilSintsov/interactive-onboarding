@@ -27,3 +27,11 @@ WHERE project_id = sqlc.arg(project_id)
   AND id = sqlc.arg(element_id)
   AND deleted_at IS NULL
 RETURNING id;
+
+-- name: LockActiveElement :one
+SELECT id
+FROM onboarding.elements
+WHERE id = sqlc.arg(element_id)
+  AND project_id = sqlc.arg(project_id)
+  AND deleted_at IS NULL
+    FOR UPDATE;
