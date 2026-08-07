@@ -14,33 +14,33 @@ import (
 
 const createEvent = `-- name: CreateEvent :one
 WITH "active_session" AS (
-  SELECT "session_id"
-  FROM "OnboardingSession"
-  WHERE "session_id" = $2
+  SELECT "id"
+  FROM onboarding.sessions
+  WHERE "id" = $2
     AND "status" = 'active'
   FOR UPDATE
 )
-INSERT INTO "OnboardingEvent"
-  ("event_id", "session_id", "step_id", "type", "data", "occurred_at", "received_at")
+INSERT INTO onboarding.events
+  ("id", "session_id", "step_id", "type", "data", "occurred_at", "received_at")
 SELECT
   $1, $2, $3, $4, $5, $6, $7
 FROM "active_session"
-RETURNING event_id, session_id, step_id, type, data, occurred_at, received_at
+RETURNING id, session_id, step_id, type, data, occurred_at, received_at
 `
 
 type CreateEventParams struct {
-	EventID    uuid.UUID        `json:"event_id"`
-	SessionID  uuid.UUID        `json:"session_id"`
-	StepID     pgtype.UUID      `json:"step_id"`
-	Type       string           `json:"type"`
-	Data       []byte           `json:"data"`
-	OccurredAt pgtype.Timestamp `json:"occurred_at"`
-	ReceivedAt pgtype.Timestamp `json:"received_at"`
+	ID         uuid.UUID          `json:"id"`
+	SessionID  uuid.UUID          `json:"session_id"`
+	StepID     pgtype.UUID        `json:"step_id"`
+	Type       string             `json:"type"`
+	Data       []byte             `json:"data"`
+	OccurredAt pgtype.Timestamptz `json:"occurred_at"`
+	ReceivedAt pgtype.Timestamptz `json:"received_at"`
 }
 
 func (q *Queries) CreateEvent(ctx context.Context, arg CreateEventParams) (OnboardingEvent, error) {
 	row := q.db.QueryRow(ctx, createEvent,
-		arg.EventID,
+		arg.ID,
 		arg.SessionID,
 		arg.StepID,
 		arg.Type,
@@ -50,7 +50,7 @@ func (q *Queries) CreateEvent(ctx context.Context, arg CreateEventParams) (Onboa
 	)
 	var i OnboardingEvent
 	err := row.Scan(
-		&i.EventID,
+		&i.ID,
 		&i.SessionID,
 		&i.StepID,
 		&i.Type,
@@ -62,16 +62,16 @@ func (q *Queries) CreateEvent(ctx context.Context, arg CreateEventParams) (Onboa
 }
 
 const getEventById = `-- name: GetEventById :one
-SELECT event_id, session_id, step_id, type, data, occurred_at, received_at
-FROM "OnboardingEvent"
-WHERE "event_id" = $1
+SELECT id, session_id, step_id, type, data, occurred_at, received_at
+FROM onboarding.events
+WHERE "id" = $1
 `
 
-func (q *Queries) GetEventById(ctx context.Context, eventID uuid.UUID) (OnboardingEvent, error) {
-	row := q.db.QueryRow(ctx, getEventById, eventID)
+func (q *Queries) GetEventById(ctx context.Context, id uuid.UUID) (OnboardingEvent, error) {
+	row := q.db.QueryRow(ctx, getEventById, id)
 	var i OnboardingEvent
 	err := row.Scan(
-		&i.EventID,
+		&i.ID,
 		&i.SessionID,
 		&i.StepID,
 		&i.Type,

@@ -38,11 +38,11 @@ func (r *SessionRepository) CreateSession(
 		return nil, err
 	}
 	created, err := r.queries.CreateSession(ctx, session.CreateSessionParams{
-		SessionID:  sessionID,
+		ID:         sessionID,
 		ScenarioID: scenarioID,
 		UserID:     onboarding.UserID,
 		Status:     string(onboarding.Status),
-		StartedAt:  pgtype.Timestamp{Time: onboarding.StartedAt, Valid: true},
+		StartedAt:  pgtype.Timestamptz{Time: onboarding.StartedAt, Valid: true},
 		FinishedAt: timestamp(onboarding.FinishedAt),
 	})
 	if err != nil {
@@ -60,7 +60,7 @@ func (r *SessionRepository) UpdateSessionStatus(
 		return nil, err
 	}
 	updated, err := r.queries.ChangeSessionStatus(ctx, session.ChangeSessionStatusParams{
-		SessionID:  parsedSessionID,
+		ID:         parsedSessionID,
 		Status:     string(status),
 		FinishedAt: timestamp(&finishedAt),
 	})
@@ -79,8 +79,8 @@ func (r *SessionRepository) GetSessionByScenarioAndUser(
 		return nil, err
 	}
 	found, err := r.queries.GetSessionByScenarioAndUser(ctx, session.GetSessionByScenarioAndUserParams{
-		ScenarioID: parsedScenarioID,
-		UserID:     userID,
+		ID:     parsedScenarioID,
+		UserID: userID,
 	})
 	if err != nil {
 		return nil, err
@@ -107,7 +107,7 @@ func (r *SessionRepository) GetSessionById(
 
 func adaptSession(source session.OnboardingSession) *trackingModel.OnboardingSession {
 	return &trackingModel.OnboardingSession{
-		ID:         source.SessionID.String(),
+		ID:         source.ID.String(),
 		ScenarioID: source.ScenarioID.String(),
 		UserID:     source.UserID,
 		Status:     trackingModel.SessionStatus(source.Status),
@@ -116,14 +116,14 @@ func adaptSession(source session.OnboardingSession) *trackingModel.OnboardingSes
 	}
 }
 
-func timestamp(value *time.Time) pgtype.Timestamp {
+func timestamp(value *time.Time) pgtype.Timestamptz {
 	if value == nil {
-		return pgtype.Timestamp{}
+		return pgtype.Timestamptz{}
 	}
-	return pgtype.Timestamp{Time: *value, Valid: true}
+	return pgtype.Timestamptz{Time: *value, Valid: true}
 }
 
-func nullableTime(value pgtype.Timestamp) *time.Time {
+func nullableTime(value pgtype.Timestamptz) *time.Time {
 	if !value.Valid {
 		return nil
 	}
