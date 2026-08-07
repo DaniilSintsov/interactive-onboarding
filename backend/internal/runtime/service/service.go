@@ -1,6 +1,6 @@
 package service
 
-import runtimeModel "github.com/DaniilSintsov/interactive-onboarding/internal/runtime/model"
+import runtimeModel "github.com/DaniilSintsov/interactive-onboarding/backend/internal/runtime/model"
 
 type ScenarioRepository interface {
 	GetScenarioByPageId(pageId string) (runtimeModel.RuntimeScenario, error)

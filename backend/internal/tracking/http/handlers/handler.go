@@ -5,10 +5,9 @@ import (
 	"errors"
 	"net/http"
 
-	platformModel "github.com/DaniilSintsov/interactive-onboarding/internal/platform/model"
-	"github.com/DaniilSintsov/interactive-onboarding/internal/shared/httputils"
-	trackingModel "github.com/DaniilSintsov/interactive-onboarding/internal/tracking/model"
-	trackingService "github.com/DaniilSintsov/interactive-onboarding/internal/tracking/service"
+	"github.com/DaniilSintsov/interactive-onboarding/backend/internal/platform/httpserver"
+	trackingModel "github.com/DaniilSintsov/interactive-onboarding/backend/internal/tracking/model"
+	trackingService "github.com/DaniilSintsov/interactive-onboarding/backend/internal/tracking/service"
 )
 
 type TrackingService interface {
@@ -33,7 +32,7 @@ func (h *TrackingHandler) RegisterRoutes(router *http.ServeMux) {
 
 func (h *TrackingHandler) createSession(w http.ResponseWriter, r *http.Request) {
 	startSessionReq := new(trackingModel.StartSessionRequest)
-	if err := httputils.ParseJson(r, startSessionReq); err != nil {
+	if err := httpserver.ParseJSON(w, r, startSessionReq); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid_request", "invalid JSON request body")
 		return
 	}
@@ -44,12 +43,12 @@ func (h *TrackingHandler) createSession(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	_ = httputils.WriteJson(w, http.StatusCreated, onboardingSession)
+	httpserver.WriteJSON(w, http.StatusCreated, onboardingSession)
 }
 
 func (h *TrackingHandler) createEvent(w http.ResponseWriter, r *http.Request) {
 	eventReq := new(trackingModel.CreateEventRequest)
-	if err := httputils.ParseJson(r, eventReq); err != nil {
+	if err := httpserver.ParseJSON(w, r, eventReq); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid_request", "invalid JSON request body")
 		return
 	}
@@ -64,7 +63,7 @@ func (h *TrackingHandler) createEvent(w http.ResponseWriter, r *http.Request) {
 	if response.Duplicate {
 		status = http.StatusOK
 	}
-	_ = httputils.WriteJson(w, status, response)
+	httpserver.WriteJSON(w, status, response)
 }
 
 func writeServiceError(w http.ResponseWriter, err error) {
@@ -84,7 +83,7 @@ func writeServiceError(w http.ResponseWriter, err error) {
 }
 
 func writeError(w http.ResponseWriter, status int, code, message string) {
-	_ = httputils.WriteJson(w, status, platformModel.ErrorResponse{
+	httpserver.WriteJSON(w, status, httpserver.ErrorResponse{
 		Code:    code,
 		Message: message,
 	})

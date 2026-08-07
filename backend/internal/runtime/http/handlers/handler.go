@@ -3,7 +3,7 @@ package handlers
 import (
 	"net/http"
 
-	runtimeModel "github.com/DaniilSintsov/interactive-onboarding/internal/runtime/model"
+	runtimeModel "github.com/DaniilSintsov/interactive-onboarding/backend/internal/runtime/model"
 	"github.com/go-playground/validator/v10"
 )
 
