@@ -78,7 +78,10 @@ func Run(logger *zap.Logger, cfg *config.Config) error {
 		logger,
 	)
 
-	server := httpserver.NewServer(cfg.HTTPConfig)
+	server := httpserver.NewServer(
+		cfg.HTTPConfig,
+		httpserver.CORS(cfg.HTTPConfig.AllowedOrigins),
+	)
 
 	server.RegisterRouteGroup(
 		"/api/v1/",
