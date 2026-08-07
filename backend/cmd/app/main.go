@@ -18,8 +18,10 @@ func main() {
 	cfg, err := config.New()
 
 	if err != nil {
-		log.Fatalf("can not initialize config: %s", err)
+		logger.Fatal("can not initialize config", zap.Error(err))
 	}
 
-	app.Run(logger, cfg)
+	if err = app.Run(logger, cfg); err != nil {
+		logger.Fatal("application stopped with error", zap.Error(err))
+	}
 }
