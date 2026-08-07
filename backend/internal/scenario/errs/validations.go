@@ -19,6 +19,6 @@ var (
 	ErrScenarioStatusUnknown       = errors.New("scenario status unknown")
 
 	ErrScenarioTestTokenScenarioIDRequired = errors.New("scenario test token scenario id is required")
-	ErrScenarioTestTokenHashRequired       = errors.New("scenario test token hash is required")
+	ErrScenarioTestTokenHashInvalid        = errors.New("scenario test token hash is invalid")
 	ErrScenarioTestTokenExpirationInvalid  = errors.New("scenario test token expiration is invalid")
 )

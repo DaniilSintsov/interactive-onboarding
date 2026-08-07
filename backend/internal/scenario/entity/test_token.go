@@ -1,6 +1,7 @@
 package entity
 
 import (
+	"crypto/sha256"
 	"time"
 
 	"github.com/DaniilSintsov/interactive-onboarding/backend/internal/scenario/errs"
@@ -23,10 +24,10 @@ func (token *ScenarioTestToken) Validate() error {
 	if token.ScenarioID == uuid.Nil {
 		return errs.ErrScenarioTestTokenScenarioIDRequired
 	}
-	if token.Hash == nil || len(token.Hash) == 0 {
-		return errs.ErrScenarioTestTokenHashRequired
+	if token.Hash == nil || len(token.Hash) != sha256.Size {
+		return errs.ErrScenarioTestTokenHashInvalid
 	}
-	if token.ExpiresAt.Before(token.CreatedAt) {
+	if !token.ExpiresAt.After(token.CreatedAt) {
 		return errs.ErrScenarioTestTokenExpirationInvalid
 	}
 	return nil

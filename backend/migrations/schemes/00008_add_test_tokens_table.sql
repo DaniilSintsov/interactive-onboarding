@@ -1,7 +1,7 @@
 -- +goose Up
 CREATE TABLE onboarding.scenario_test_tokens
 (
-    id          UUID PRIMARY KEY     DEFAULT DEFAULT gen_random_uuid(),
+    id          UUID PRIMARY KEY     DEFAULT gen_random_uuid(),
     scenario_id UUID        NOT NULL,
     hash        BYTEA       NOT NULL,
     created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -13,10 +13,10 @@ CREATE TABLE onboarding.scenario_test_tokens
             ON DELETE RESTRICT,
 
     CONSTRAINT scenario_test_tokens_hash_unique
-        UNIQUE (token_hash),
+        UNIQUE (hash),
 
     CONSTRAINT scenario_test_tokens_hash_length
-        CHECK (octet_length(token_hash) = 32),
+        CHECK (octet_length(hash) = 32),
 
     CONSTRAINT scenario_test_tokens_expiration_valid
         CHECK (expires_at > created_at)
@@ -31,4 +31,4 @@ CREATE INDEX scenario_test_tokens_expires_at_idx
 
 -- +goose Down
 
-DROP TABLE oonboarding.scenario_test_tokens;
+DROP TABLE onboarding.scenario_test_tokens;
