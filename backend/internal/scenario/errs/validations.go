@@ -17,4 +17,8 @@ var (
 	ErrScenarioDescriptionTooLong  = errors.New("scenario description is too long")
 	ErrScenarioPagePatternTooLong  = errors.New("scenario page pattern is too long")
 	ErrScenarioStatusUnknown       = errors.New("scenario status unknown")
+
+	ErrScenarioTestTokenScenarioIDRequired = errors.New("scenario test token scenario id is required")
+	ErrScenarioTestTokenHashRequired       = errors.New("scenario test token hash is required")
+	ErrScenarioTestTokenExpirationInvalid  = errors.New("scenario test token expiration is invalid")
 )
