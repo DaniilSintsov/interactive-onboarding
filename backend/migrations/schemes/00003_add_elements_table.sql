@@ -1,3 +1,5 @@
+-- +goose Up
+
 CREATE TABLE onboarding.elements
 (
     id          UUID PRIMARY KEY     DEFAULT gen_random_uuid(),
@@ -33,3 +35,7 @@ CREATE TRIGGER elements_set_updated_at
     ON onboarding.elements
     FOR EACH ROW
     EXECUTE FUNCTION onboarding.set_updated_at();
+
+-- +goose Down
+
+DROP TABLE onboarding.elements;

@@ -1,3 +1,5 @@
+-- +goose Up
+
 CREATE TABLE onboarding.projects
 (
     id          UUID PRIMARY KEY     DEFAULT gen_random_uuid(),
@@ -19,3 +21,7 @@ CREATE TRIGGER projects_set_updated_at
     ON onboarding.projects
     FOR EACH ROW
 EXECUTE FUNCTION onboarding.set_updated_at();
+
+-- +goose Down
+
+DROP TABLE onboarding.projects;
