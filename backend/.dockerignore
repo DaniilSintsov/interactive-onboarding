@@ -1,7 +1,6 @@
 .git
 .gitignore
 .dockerignore
-tests
 
 *.env
 *.log
