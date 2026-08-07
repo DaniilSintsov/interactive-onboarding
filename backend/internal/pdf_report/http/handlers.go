@@ -5,11 +5,10 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/gin-gonic/gin"
-	"github.com/google/uuid"
 	"github.com/jung-kurt/gofpdf/v2"
 
 	"interactive-onboarding/internal/analytics/service"
+	"interactive-onboarding/internal/platform/httpserver"
 )
 
 type PDFHandler struct {
@@ -20,35 +19,30 @@ func NewPDFHandler(svc *service.AnalyticsService) *PDFHandler {
 	return &PDFHandler{analyticsService: svc}
 }
 
-func (h *PDFHandler) GenerateScenarioPDFReport(c *gin.Context) {
-	scenarioID, err := parseScenarioID(c)
+func (h *PDFHandler) GenerateScenarioPDFReport(w http.ResponseWriter, r *http.Request) {
+	scenarioID, err := httpserver.ParseUUIDPath(r, "id")
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		httpserver.WriteJSONError(w, http.StatusBadRequest, "invalid_scenario_id", err.Error())
 		return
 	}
 
-	from, to := parseTimeRange(c)
+	from, to := parseTimeRange(r)
 
-	analytics, err := h.analyticsService.GetDetailedScenarioAnalytics(
-		c.Request.Context(),
-		scenarioID.String(),
-		from,
-		to,
-	)
+	analytics, err := h.analyticsService.GetDetailedScenarioAnalytics(r.Context(), scenarioID.String(), from, to)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		httpserver.WriteJSONError(w, http.StatusInternalServerError, "internal_error", err.Error())
 		return
 	}
 
 	pdfData, err := generatePDF(analytics)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to generate PDF"})
+		httpserver.WriteJSONError(w, http.StatusInternalServerError, "pdf_generation_error", err.Error())
 		return
 	}
 
-	c.Header("Content-Type", "application/pdf")
-	c.Header("Content-Disposition", fmt.Sprintf("attachment; filename=report_%s.pdf", scenarioID.String()))
-	c.Data(http.StatusOK, "application/pdf", pdfData)
+	w.Header().Set("Content-Type", "application/pdf")
+	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=report_%s.pdf", scenarioID.String()))
+	w.Write(pdfData)
 }
 
 func generatePDF(data service.DetailedScenarioAnalytics) ([]byte, error) {
@@ -72,6 +66,7 @@ func generatePDF(data service.DetailedScenarioAnalytics) ([]byte, error) {
 	pdf.Cell(40, 10, fmt.Sprintf("Average Time: %.2f sec", data.AverageCompletionTimeSeconds))
 	pdf.Ln(12)
 
+	// Заголовок таблицы
 	pdf.SetFont("Arial", "B", 12)
 	pdf.Cell(30, 10, "Step")
 	pdf.Cell(30, 10, "Position")
@@ -80,6 +75,7 @@ func generatePDF(data service.DetailedScenarioAnalytics) ([]byte, error) {
 	pdf.Cell(40, 10, "Completion Rate")
 	pdf.Ln(8)
 
+	// Данные таблицы
 	pdf.SetFont("Arial", "", 11)
 	for _, step := range data.Steps {
 		pdf.Cell(30, 8, step.Title)
@@ -93,30 +89,19 @@ func generatePDF(data service.DetailedScenarioAnalytics) ([]byte, error) {
 	return pdf.Output(nil)
 }
 
-func parseScenarioID(c *gin.Context) (uuid.UUID, error) {
-	idStr := c.Param("id")
-	if idStr == "" {
-		return uuid.Nil, fmt.Errorf("missing scenario id")
-	}
-	id, err := uuid.Parse(idStr)
-	if err != nil {
-		return uuid.Nil, fmt.Errorf("invalid scenario id: %w", err)
-	}
-	return id, nil
-}
-
-func parseTimeRange(c *gin.Context) (*time.Time, *time.Time) {
+func parseTimeRange(r *http.Request) (*time.Time, *time.Time) {
 	var from, to *time.Time
 
-	if fromStr := c.Query("from"); fromStr != "" {
+	if fromStr := r.URL.Query().Get("from"); fromStr != "" {
 		if t, err := time.Parse(time.RFC3339, fromStr); err == nil {
 			from = &t
 		}
 	}
-	if toStr := c.Query("to"); toStr != "" {
+	if toStr := r.URL.Query().Get("to"); toStr != "" {
 		if t, err := time.Parse(time.RFC3339, toStr); err == nil {
 			to = &t
 		}
 	}
+
 	return from, to
 }
