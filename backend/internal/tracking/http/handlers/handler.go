@@ -5,8 +5,8 @@ import (
 	"errors"
 	"net/http"
 
-	"github.com/DaniilSintsov/interactive-onboarding/internal/platform/httpserver"
 	platformModel "github.com/DaniilSintsov/interactive-onboarding/internal/platform/model"
+	"github.com/DaniilSintsov/interactive-onboarding/internal/shared/httputils"
 	trackingModel "github.com/DaniilSintsov/interactive-onboarding/internal/tracking/model"
 	trackingService "github.com/DaniilSintsov/interactive-onboarding/internal/tracking/service"
 )
@@ -26,9 +26,14 @@ func NewTrackingHandler(srvc TrackingService) *TrackingHandler {
 	}
 }
 
-func (h *TrackingHandler) CreateSession(w http.ResponseWriter, r *http.Request) {
+func (h *TrackingHandler) RegisterRoutes(router *http.ServeMux) {
+	router.HandleFunc("POST /api/v1/sdk/sessions", h.createSession)
+	router.HandleFunc("POST /api/v1/sdk/events", h.createEvent)
+}
+
+func (h *TrackingHandler) createSession(w http.ResponseWriter, r *http.Request) {
 	startSessionReq := new(trackingModel.StartSessionRequest)
-	if err := httpserver.ParseJson(r, startSessionReq); err != nil {
+	if err := httputils.ParseJson(r, startSessionReq); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid_request", "invalid JSON request body")
 		return
 	}
@@ -39,12 +44,12 @@ func (h *TrackingHandler) CreateSession(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	_ = httpserver.WriteJson(w, http.StatusCreated, onboardingSession)
+	_ = httputils.WriteJson(w, http.StatusCreated, onboardingSession)
 }
 
-func (h *TrackingHandler) CreateEvent(w http.ResponseWriter, r *http.Request) {
+func (h *TrackingHandler) createEvent(w http.ResponseWriter, r *http.Request) {
 	eventReq := new(trackingModel.CreateEventRequest)
-	if err := httpserver.ParseJson(r, eventReq); err != nil {
+	if err := httputils.ParseJson(r, eventReq); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid_request", "invalid JSON request body")
 		return
 	}
@@ -59,7 +64,7 @@ func (h *TrackingHandler) CreateEvent(w http.ResponseWriter, r *http.Request) {
 	if response.Duplicate {
 		status = http.StatusOK
 	}
-	_ = httpserver.WriteJson(w, status, response)
+	_ = httputils.WriteJson(w, status, response)
 }
 
 func writeServiceError(w http.ResponseWriter, err error) {
@@ -79,7 +84,7 @@ func writeServiceError(w http.ResponseWriter, err error) {
 }
 
 func writeError(w http.ResponseWriter, status int, code, message string) {
-	_ = httpserver.WriteJson(w, status, platformModel.ErrorResponse{
+	_ = httputils.WriteJson(w, status, platformModel.ErrorResponse{
 		Code:    code,
 		Message: message,
 	})
