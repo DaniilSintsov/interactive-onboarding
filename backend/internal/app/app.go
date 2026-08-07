@@ -11,6 +11,7 @@ import (
 
 	"github.com/DaniilSintsov/interactive-onboarding/backend/internal/config"
 	"github.com/DaniilSintsov/interactive-onboarding/backend/internal/platform/httpserver"
+	platformmiddleware "github.com/DaniilSintsov/interactive-onboarding/backend/internal/platform/middleware"
 	"github.com/DaniilSintsov/interactive-onboarding/backend/internal/platform/postgres"
 	"github.com/DaniilSintsov/interactive-onboarding/backend/internal/platform/postgres/transactor"
 	projecthttp "github.com/DaniilSintsov/interactive-onboarding/backend/internal/project/http"
@@ -80,7 +81,7 @@ func Run(logger *zap.Logger, cfg *config.Config) error {
 
 	server := httpserver.NewServer(
 		cfg.HTTPConfig,
-		httpserver.CORS(cfg.HTTPConfig.AllowedOrigins),
+		platformmiddleware.CORS(cfg.HTTPConfig.AllowedOrigins),
 	)
 
 	server.RegisterRouteGroup(
