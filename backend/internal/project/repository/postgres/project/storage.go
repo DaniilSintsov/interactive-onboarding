@@ -5,10 +5,10 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/DaniilSintsov/interactive-onboarding/backend/internal/platform/postgres/transactor"
 	"github.com/DaniilSintsov/interactive-onboarding/backend/internal/project/entity"
 	"github.com/DaniilSintsov/interactive-onboarding/backend/internal/project/errs"
 	sqlc "github.com/DaniilSintsov/interactive-onboarding/backend/internal/project/repository/postgres/project/sqlc"
-	"github.com/DaniilSintsov/interactive-onboarding/backend/internal/project/repository/transactor"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"

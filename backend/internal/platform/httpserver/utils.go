@@ -1,4 +1,4 @@
-package projecthttp
+package httpserver
 
 import (
 	"encoding/json"
@@ -11,20 +11,21 @@ import (
 )
 
 const (
-	defaultLimit  = 20
-	defaultOffset = 0
+	defaultLimit        = 20
+	defaultOffset       = 0
+	maxLimit            = 100
+	maxRequestBodyBytes = 1 << 20
 )
 
-func parsePagination(r *http.Request) (int, int, error) {
+func ParsePagination(r *http.Request) (int, int, error) {
 	limit := defaultLimit
 	offset := defaultOffset
-
 	query := r.URL.Query()
 
 	if rawLimit := query.Get("limit"); rawLimit != "" {
 		parsedLimit, err := strconv.Atoi(rawLimit)
 		if err != nil {
-			return 0, 0, newRequestError(
+			return 0, 0, NewRequestError(
 				"invalid_limit",
 				"limit must be an integer",
 				map[string]any{"parameter": "limit"},
@@ -38,7 +39,7 @@ func parsePagination(r *http.Request) (int, int, error) {
 	if rawOffset := query.Get("offset"); rawOffset != "" {
 		parsedOffset, err := strconv.Atoi(rawOffset)
 		if err != nil {
-			return 0, 0, newRequestError(
+			return 0, 0, NewRequestError(
 				"invalid_offset",
 				"offset must be an integer",
 				map[string]any{"parameter": "offset"},
@@ -49,8 +50,8 @@ func parsePagination(r *http.Request) (int, int, error) {
 		offset = parsedOffset
 	}
 
-	if limit < 1 || limit > 100 {
-		return 0, 0, newRequestError(
+	if limit < 1 || limit > maxLimit {
+		return 0, 0, NewRequestError(
 			"invalid_limit",
 			"limit must be between 1 and 100",
 			map[string]any{"parameter": "limit"},
@@ -59,7 +60,7 @@ func parsePagination(r *http.Request) (int, int, error) {
 	}
 
 	if offset < 0 {
-		return 0, 0, newRequestError(
+		return 0, 0, NewRequestError(
 			"invalid_offset",
 			"offset must be greater than or equal to 0",
 			map[string]any{"parameter": "offset"},
@@ -70,13 +71,13 @@ func parsePagination(r *http.Request) (int, int, error) {
 	return limit, offset, nil
 }
 
-func parseUUIDPath(r *http.Request, name string) (uuid.UUID, error) {
+func ParseUUIDPath(r *http.Request, name, errorCode string) (uuid.UUID, error) {
 	value := r.PathValue(name)
 
 	id, err := uuid.Parse(value)
 	if err != nil {
-		return uuid.Nil, newRequestError(
-			pathParameterErrorCode(name),
+		return uuid.Nil, NewRequestError(
+			errorCode,
 			name+" must be a valid UUID",
 			map[string]any{"parameter": name},
 			err,
@@ -84,8 +85,8 @@ func parseUUIDPath(r *http.Request, name string) (uuid.UUID, error) {
 	}
 
 	if id == uuid.Nil {
-		return uuid.Nil, newRequestError(
-			pathParameterErrorCode(name),
+		return uuid.Nil, NewRequestError(
+			errorCode,
 			name+" must not be a nil UUID",
 			map[string]any{"parameter": name},
 			nil,
@@ -95,25 +96,14 @@ func parseUUIDPath(r *http.Request, name string) (uuid.UUID, error) {
 	return id, nil
 }
 
-func pathParameterErrorCode(name string) string {
-	switch name {
-	case "projectId":
-		return "invalid_project_id"
-	case "elementId":
-		return "invalid_element_id"
-	default:
-		return "invalid_path_parameter"
-	}
-}
-
-func parseJSON(w http.ResponseWriter, r *http.Request, dst any) error {
-	r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
+func ParseJSON(w http.ResponseWriter, r *http.Request, dst any) error {
+	r.Body = http.MaxBytesReader(w, r.Body, maxRequestBodyBytes)
 
 	decoder := json.NewDecoder(r.Body)
 	decoder.DisallowUnknownFields()
 
 	if err := decoder.Decode(dst); err != nil {
-		return newRequestError(
+		return NewRequestError(
 			"invalid_request_body",
 			"request body must contain valid JSON",
 			map[string]any{"field": "body"},
@@ -122,7 +112,7 @@ func parseJSON(w http.ResponseWriter, r *http.Request, dst any) error {
 	}
 
 	if err := decoder.Decode(&struct{}{}); !errors.Is(err, io.EOF) {
-		return newRequestError(
+		return NewRequestError(
 			"invalid_request_body",
 			"request body must contain exactly one JSON value",
 			map[string]any{"field": "body"},
@@ -133,7 +123,7 @@ func parseJSON(w http.ResponseWriter, r *http.Request, dst any) error {
 	return nil
 }
 
-func writeJSON(w http.ResponseWriter, status int, value any) {
+func WriteJSON(w http.ResponseWriter, status int, value any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 	if value != nil {
