@@ -1,11 +1,9 @@
 package model
 
-import "time"
-
-type ResolveScenarioRequest struct {
-	Page   string `json:"page"`
-	UserID string `json:"user_id"`
-}
+import (
+	"encoding/json"
+	"time"
+)
 
 type StartSessionRequest struct {
 	ScenarioID string `json:"scenario_id"`
@@ -13,12 +11,12 @@ type StartSessionRequest struct {
 }
 
 type CreateEventRequest struct {
-	ID         string    `json:"id"`
-	SessionID  string    `json:"session_id"`
-	StepID     *string   `json:"step_id"`
-	Type       EventType `json:"type"`
-	Data       []byte    `json:"data"`
-	OccurredAt string    `json:"occurred_at"`
+	ID         string          `json:"id"`
+	SessionID  string          `json:"session_id"`
+	StepID     *string         `json:"step_id"`
+	Type       EventType       `json:"type"`
+	Data       json.RawMessage `json:"data"`
+	OccurredAt string          `json:"occurred_at"`
 }
 
 type SessionStatus string
@@ -49,13 +47,13 @@ const (
 )
 
 type OnboardingEvent struct {
-	ID         string    `json:"id"`
-	SessionID  string    `json:"session_id"`
-	StepID     *string   `json:"step_id"`
-	Type       EventType `json:"type"`
-	Data       []byte    `json:"data"`
-	OccurredAt time.Time `json:"occurred_at"`
-	ReceivedAt time.Time `json:"received_at"`
+	ID         string          `json:"id"`
+	SessionID  string          `json:"session_id"`
+	StepID     *string         `json:"step_id"`
+	Type       EventType       `json:"type"`
+	Data       json.RawMessage `json:"data"`
+	OccurredAt time.Time       `json:"occurred_at"`
+	ReceivedAt time.Time       `json:"received_at"`
 }
 
 type EventAcceptedResponse struct {

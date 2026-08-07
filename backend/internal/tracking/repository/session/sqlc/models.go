@@ -12,7 +12,7 @@ import (
 type OnboardingSession struct {
 	SessionID  uuid.UUID        `json:"session_id"`
 	ScenarioID uuid.UUID        `json:"scenario_id"`
-	UserID     uuid.UUID        `json:"user_id"`
+	UserID     string           `json:"user_id"`
 	Status     string           `json:"status"`
 	StartedAt  pgtype.Timestamp `json:"started_at"`
 	FinishedAt pgtype.Timestamp `json:"finished_at"`

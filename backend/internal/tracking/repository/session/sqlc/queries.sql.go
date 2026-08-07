@@ -15,7 +15,7 @@ import (
 const changeSessionStatus = `-- name: ChangeSessionStatus :one
 UPDATE "OnboardingSession"
 SET "status" = $1, "finished_at" = $2
-WHERE "session_id" = $3
+WHERE "session_id" = $3 AND "status" = 'active'
 RETURNING session_id, scenario_id, user_id, status, started_at, finished_at
 `
 
@@ -50,7 +50,7 @@ RETURNING session_id, scenario_id, user_id, status, started_at, finished_at
 type CreateSessionParams struct {
 	SessionID  uuid.UUID        `json:"session_id"`
 	ScenarioID uuid.UUID        `json:"scenario_id"`
-	UserID     uuid.UUID        `json:"user_id"`
+	UserID     string           `json:"user_id"`
 	Status     string           `json:"status"`
 	StartedAt  pgtype.Timestamp `json:"started_at"`
 	FinishedAt pgtype.Timestamp `json:"finished_at"`
@@ -85,11 +85,31 @@ WHERE "scenario_id" = $1 AND "user_id" = $2
 
 type GetSessionByScenarioAndUserParams struct {
 	ScenarioID uuid.UUID `json:"scenario_id"`
-	UserID     uuid.UUID `json:"user_id"`
+	UserID     string    `json:"user_id"`
 }
 
 func (q *Queries) GetSessionByScenarioAndUser(ctx context.Context, arg GetSessionByScenarioAndUserParams) (OnboardingSession, error) {
 	row := q.db.QueryRow(ctx, getSessionByScenarioAndUser, arg.ScenarioID, arg.UserID)
+	var i OnboardingSession
+	err := row.Scan(
+		&i.SessionID,
+		&i.ScenarioID,
+		&i.UserID,
+		&i.Status,
+		&i.StartedAt,
+		&i.FinishedAt,
+	)
+	return i, err
+}
+
+const selectSessionById = `-- name: SelectSessionById :one
+SELECT session_id, scenario_id, user_id, status, started_at, finished_at
+FROM "OnboardingSession"
+WHERE "session_id" = $1
+`
+
+func (q *Queries) SelectSessionById(ctx context.Context, sessionID uuid.UUID) (OnboardingSession, error) {
+	row := q.db.QueryRow(ctx, selectSessionById, sessionID)
 	var i OnboardingSession
 	err := row.Scan(
 		&i.SessionID,

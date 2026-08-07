@@ -6,12 +6,15 @@ package session
 
 import (
 	"context"
+
+	"github.com/google/uuid"
 )
 
 type Querier interface {
 	ChangeSessionStatus(ctx context.Context, arg ChangeSessionStatusParams) (OnboardingSession, error)
 	CreateSession(ctx context.Context, arg CreateSessionParams) (OnboardingSession, error)
 	GetSessionByScenarioAndUser(ctx context.Context, arg GetSessionByScenarioAndUserParams) (OnboardingSession, error)
+	SelectSessionById(ctx context.Context, sessionID uuid.UUID) (OnboardingSession, error)
 }
 
 var _ Querier = (*Queries)(nil)

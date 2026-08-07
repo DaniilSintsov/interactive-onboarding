@@ -26,6 +26,7 @@ type SessionRepository interface {
 	CreateSession(context.Context, *trackingModel.OnboardingSession) (*trackingModel.OnboardingSession, error)
 	UpdateSessionStatus(context.Context, string, trackingModel.SessionStatus, time.Time) (*trackingModel.OnboardingSession, error)
 	GetSessionByScenarioAndUser(ctx context.Context, scenarioId string, userId string) (*trackingModel.OnboardingSession, error)
+	GetSessionById(context.Context, string) (*trackingModel.OnboardingSession, error)
 }
 type EventRepository interface {
 	RecordEvent(context.Context, *trackingModel.OnboardingEvent) (*trackingModel.EventAcceptedResponse, error)
@@ -55,6 +56,7 @@ func (s *TrackingService) StartSession(ctx context.Context, session *trackingMod
 	if length := utf8.RuneCountInString(session.UserID); length < 1 || length > 255 {
 		return nil, invalid("user_id must contain from 1 to 255 characters")
 	}
+
 	existingSession, err := s.sessions.GetSessionByScenarioAndUser(ctx, session.ScenarioID, session.UserID)
 	if err == nil {
 		return existingSession, nil
@@ -78,6 +80,16 @@ func (s *TrackingService) CreateEvent(ctx context.Context, event *trackingModel.
 	if err != nil {
 		return nil, err
 	}
+	session, err := s.sessions.GetSessionById(ctx, event.SessionID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, ErrSessionNotFound
+		}
+		return nil, ErrInvalidRequest
+	}
+	if session.Status != trackingModel.SessionStatusActive {
+		return nil, ErrSessionNotActive
+	}
 
 	onboardingEvent := &trackingModel.OnboardingEvent{
 		ID:         event.ID,
@@ -100,15 +112,14 @@ func (s *TrackingService) CreateEvent(ctx context.Context, event *trackingModel.
 			return fmt.Errorf("get event %q: %w", event.ID, err)
 		}
 
+		created, err := events.RecordEvent(ctx, onboardingEvent)
+		if err != nil {
+			return fmt.Errorf("record event %q: %w", event.ID, err)
+		}
 		if status, completesSession := completionStatus(event.Type); completesSession {
 			if _, err := sessions.UpdateSessionStatus(ctx, event.SessionID, status, occurredAt); err != nil {
 				return fmt.Errorf("complete session %q: %w", event.SessionID, err)
 			}
-		}
-
-		created, err := events.RecordEvent(ctx, onboardingEvent)
-		if err != nil {
-			return fmt.Errorf("record event %q: %w", event.ID, err)
 		}
 		response = created
 		return nil
@@ -116,9 +127,6 @@ func (s *TrackingService) CreateEvent(ctx context.Context, event *trackingModel.
 
 	err = s.events.WithinTransaction(ctx, create)
 	if err != nil {
-		// A concurrent request can insert the same event after the lookup above.
-		// Its transaction is rolled back, so read the committed event and preserve
-		// the API's idempotent duplicate response.
 		if isUniqueViolation(err) {
 			existing, lookupErr := s.events.GetEventById(ctx, event.ID)
 			if lookupErr == nil {
@@ -187,8 +195,4 @@ func isUniqueViolation(err error) bool {
 
 func invalid(message string) error {
 	return fmt.Errorf("%w: %s", ErrInvalidRequest, message)
-}
-
-func timestamp(value time.Time) string {
-	return value.UTC().Format(time.RFC3339Nano)
 }

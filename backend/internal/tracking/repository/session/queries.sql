@@ -10,8 +10,13 @@ SELECT *
 FROM "OnboardingSession"
 WHERE "scenario_id" = $1 AND "user_id" = $2;
 
+-- name: SelectSessionById :one
+SELECT *
+FROM "OnboardingSession"
+WHERE "session_id" = $1;
+
 -- name: ChangeSessionStatus :one
 UPDATE "OnboardingSession"
 SET "status" = $1, "finished_at" = $2
-WHERE "session_id" = $3
+WHERE "session_id" = $3 AND "status" = 'active'
 RETURNING *;

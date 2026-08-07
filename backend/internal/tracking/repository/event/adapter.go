@@ -80,8 +80,8 @@ func (e *EventRepository) RecordEvent(
 		StepID:     stepId,
 		Type:       string(onboarding.Type),
 		Data:       onboarding.Data,
-		OccurredAt: pgtype.Timestamp{Time: onboarding.OccurredAt},
-		ReceivedAt: pgtype.Timestamp{Time: onboarding.ReceivedAt},
+		OccurredAt: pgtype.Timestamp{Time: onboarding.OccurredAt, Valid: true},
+		ReceivedAt: pgtype.Timestamp{Time: onboarding.ReceivedAt, Valid: true},
 	}
 
 	createdEvent, err := e.queries.CreateEvent(ctx, createEvent)
