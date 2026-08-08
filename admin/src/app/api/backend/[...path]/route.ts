@@ -15,18 +15,12 @@ async function proxy(
     if (forbidden) return forbidden;
   }
 
-  const password = process.env.ADMIN_PASSWORD;
-  if (!password) {
-    return NextResponse.json({ message: 'ADMIN_PASSWORD не настроен' }, { status: 500 });
-  }
-
   try {
     const { path } = await context.params;
     const upstream = await fetch(buildBackendUrl(path, request.nextUrl.search), {
       method: request.method,
       headers: {
         accept: request.headers.get('accept') || 'application/json',
-        authorization: `Bearer ${password}`,
         ...(request.headers.get('content-type')
           ? { 'content-type': request.headers.get('content-type') as string }
           : {}),

@@ -1,6 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { rejectCrossOrigin } from '@/shared/lib/auth';
-import { createSessionCookie, matchesAdminPassword, SESSION_COOKIE } from '@/shared/lib/session';
+import { matchesAdminPassword } from '@/shared/lib/password';
+import {
+  createSessionCookie,
+  SESSION_COOKIE,
+  SESSION_TTL_SECONDS,
+} from '@/shared/lib/session';
+
+export const runtime = 'nodejs';
 
 export async function POST(request: NextRequest) {
   const forbidden = rejectCrossOrigin(request);
@@ -17,7 +24,7 @@ export async function POST(request: NextRequest) {
     secure: process.env.NODE_ENV === 'production',
     sameSite: 'strict',
     path: '/',
-    maxAge: 7 * 24 * 60 * 60,
+    maxAge: SESSION_TTL_SECONDS,
   });
   return response;
 }

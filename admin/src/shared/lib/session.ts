@@ -1,5 +1,6 @@
 const encoder = new TextEncoder();
-const SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+export const SESSION_TTL_SECONDS = 24 * 60 * 60;
+const SESSION_TTL_MS = SESSION_TTL_SECONDS * 1000;
 
 export const SESSION_COOKIE = 'onboarding_admin_session';
 
@@ -70,18 +71,4 @@ export async function verifySessionCookie(
   } catch {
     return null;
   }
-}
-
-export async function matchesAdminPassword(candidate: string): Promise<boolean> {
-  const configured = process.env.ADMIN_PASSWORD;
-  if (!configured) return false;
-  const [candidateHash, configuredHash] = await Promise.all([
-    crypto.subtle.digest('SHA-256', encoder.encode(candidate)),
-    crypto.subtle.digest('SHA-256', encoder.encode(configured)),
-  ]);
-  const left = new Uint8Array(candidateHash);
-  const right = new Uint8Array(configuredHash);
-  let difference = 0;
-  for (let index = 0; index < left.length; index += 1) difference |= left[index] ^ right[index];
-  return difference === 0;
 }

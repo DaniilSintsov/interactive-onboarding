@@ -40,7 +40,7 @@ export default async function LoginPage({
         <div className="login-card">
           <p className="eyebrow">Защищённая зона</p>
           <h2>Вход администратора</h2>
-          <p className="muted">Пароль хранится только на сервере. Сессия действует 7 дней.</p>
+          <p className="muted">Пароль хранится только как хеш. Сессия действует 24 часа.</p>
           <LoginForm returnTo={returnTo} />
         </div>
       </section>
