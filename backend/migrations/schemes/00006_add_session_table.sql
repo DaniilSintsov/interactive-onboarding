@@ -10,7 +10,12 @@ CREATE TABLE onboarding.sessions
     finished_at TIMESTAMPTZ,
 
     CONSTRAINT sessions_status_check
-        CHECK (status IN ('active', 'completed', 'skipped'))
+        CHECK (status IN ('active', 'completed', 'skipped')),
+
+    CONSTRAINT sessions_scenario_fk
+        FOREIGN KEY (scenario_id)
+            REFERENCES onboarding.scenarios (id)
+            ON DELETE RESTRICT
 );
 
 CREATE UNIQUE INDEX sessions_scenario_id_user_id_unique

@@ -2,7 +2,7 @@
 // versions:
 //   sqlc v1.30.0
 
-package event
+package step
 
 import (
 	"context"
@@ -11,8 +11,7 @@ import (
 )
 
 type Querier interface {
-	CreateEvent(ctx context.Context, arg CreateEventParams) (OnboardingEvent, error)
-	GetEventById(ctx context.Context, id uuid.UUID) (OnboardingEvent, error)
+	GetStepById(ctx context.Context, id uuid.UUID) (OnboardingStep, error)
 }
 
 var _ Querier = (*Queries)(nil)

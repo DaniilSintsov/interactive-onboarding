@@ -22,27 +22,39 @@ var (
 	ErrStepScenarioMismatch = errors.New("onboarding step does not belong to session scenario")
 )
 
-type SessionRepository interface {
-	CreateSession(context.Context, *trackingModel.OnboardingSession) (*trackingModel.OnboardingSession, error)
-	UpdateSessionStatus(context.Context, string, trackingModel.SessionStatus, time.Time) (*trackingModel.OnboardingSession, error)
-	GetSessionByScenarioAndUser(ctx context.Context, scenarioId string, userId string) (*trackingModel.OnboardingSession, error)
-	GetSessionById(context.Context, string) (*trackingModel.OnboardingSession, error)
-}
-type EventRepository interface {
-	RecordEvent(context.Context, *trackingModel.OnboardingEvent) (*trackingModel.EventAcceptedResponse, error)
-	GetEventById(context.Context, string) (*trackingModel.EventAcceptedResponse, error)
-	WithinTransaction(context.Context, func(SessionRepository, EventRepository) error) error
-}
+type (
+	SessionRepository interface {
+		CreateSession(context.Context, *trackingModel.OnboardingSession) (*trackingModel.OnboardingSession, error)
+		UpdateSessionStatus(context.Context, string, trackingModel.SessionStatus, time.Time) (*trackingModel.OnboardingSession, error)
+		GetSessionByScenarioAndUser(ctx context.Context, scenarioId string, userId string) (*trackingModel.OnboardingSession, error)
+		GetSessionById(context.Context, string) (*trackingModel.OnboardingSession, error)
+	}
+	EventRepository interface {
+		RecordEvent(context.Context, *trackingModel.OnboardingEvent) (*trackingModel.EventAcceptedResponse, error)
+		GetEventById(context.Context, string) (*trackingModel.EventAcceptedResponse, error)
+		WithinTransaction(context.Context, func(SessionRepository, EventRepository) error) error
+	}
+	ScenarioRepository interface {
+		GetScenarioByIdAndProjectKey(ctx context.Context, scenarioId, projectKey string) (*trackingModel.Scenario, error)
+	}
+	StepRepository interface {
+		GetStepById(ctx context.Context, stepId string) (*trackingModel.Step, error)
+	}
+)
 
 type TrackingService struct {
-	sessions SessionRepository
-	events   EventRepository
+	sessions  SessionRepository
+	events    EventRepository
+	scenarios ScenarioRepository
+	steps     StepRepository
 }
 
-func NewTrackingService(s SessionRepository, e EventRepository) *TrackingService {
+func NewTrackingService(s SessionRepository, e EventRepository, sc ScenarioRepository, st StepRepository) *TrackingService {
 	return &TrackingService{
-		sessions: s,
-		events:   e,
+		sessions:  s,
+		events:    e,
+		scenarios: sc,
+		steps:     st,
 	}
 }
 
@@ -55,6 +67,11 @@ func (s *TrackingService) StartSession(ctx context.Context, session *trackingMod
 	}
 	if length := utf8.RuneCountInString(session.UserID); length < 1 || length > 255 {
 		return nil, invalid("user_id must contain from 1 to 255 characters")
+	}
+
+	err := s.validateProjectKey(ctx, session.ScenarioID)
+	if err != nil {
+		return nil, err
 	}
 
 	existingSession, err := s.sessions.GetSessionByScenarioAndUser(ctx, session.ScenarioID, session.UserID)
@@ -80,6 +97,14 @@ func (s *TrackingService) CreateEvent(ctx context.Context, event *trackingModel.
 	if err != nil {
 		return nil, err
 	}
+	existing, err := s.events.GetEventById(ctx, event.ID)
+	switch {
+	case err == nil:
+		return existing, nil
+	case !errors.Is(err, sql.ErrNoRows):
+		return nil, fmt.Errorf("get event %q: %w", event.ID, err)
+	}
+
 	session, err := s.sessions.GetSessionById(ctx, event.SessionID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -89,6 +114,26 @@ func (s *TrackingService) CreateEvent(ctx context.Context, event *trackingModel.
 	}
 	if session.Status != trackingModel.SessionStatusActive {
 		return nil, ErrSessionNotActive
+	}
+
+	err = s.validateProjectKey(ctx, session.ScenarioID)
+	if err != nil {
+		return nil, err
+	}
+
+	if event.StepID != nil {
+		step, err := s.steps.GetStepById(ctx, *event.StepID)
+		if err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				return nil, ErrStepNotFound
+			} else {
+				return nil, err
+			}
+		}
+
+		if step.ScenarioID != session.ScenarioID {
+			return nil, ErrStepScenarioMismatch
+		}
 	}
 
 	onboardingEvent := &trackingModel.OnboardingEvent{
@@ -137,6 +182,22 @@ func (s *TrackingService) CreateEvent(ctx context.Context, event *trackingModel.
 		return nil, err
 	}
 	return response, nil
+}
+
+func (s *TrackingService) validateProjectKey(ctx context.Context, scenarioId string) error {
+	projectKey := ctx.Value("projectKey").(string)
+	scenario, err := s.scenarios.GetScenarioByIdAndProjectKey(ctx, scenarioId, projectKey)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return ErrScenarioNotFound
+		} else {
+			return err
+		}
+	}
+	if scenario.Status != trackingModel.ScenarioStatusEnabled {
+		return invalid("scenario is not enabled")
+	}
+	return nil
 }
 
 func validateEvent(event *trackingModel.CreateEventRequest) (time.Time, error) {
