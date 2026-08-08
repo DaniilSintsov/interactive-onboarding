@@ -125,20 +125,20 @@ func (repo *stepRepository) Delete(
 	ctx context.Context,
 	scenarioID uuid.UUID,
 	stepID uuid.UUID,
-) (int, error) {
-	row, err := repo.getQueries(ctx).DeleteStep(ctx, sqlc.DeleteStepParams{
+) error {
+	_, err := repo.getQueries(ctx).DeleteStep(ctx, sqlc.DeleteStepParams{
 		ScenarioID: scenarioID,
 		StepID:     stepID,
 	})
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return 0, errs.ErrStepNotFound
+			return errs.ErrStepNotFound
 		}
 
-		return 0, fmt.Errorf("step repository - delete: %w", err)
+		return fmt.Errorf("step repository - delete: %w", err)
 	}
 
-	return int(row.StepNum), nil
+	return nil
 }
 
 func (repo *stepRepository) ListByScenarioID(
