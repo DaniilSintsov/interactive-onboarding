@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"time"
 
-	trackingModel "github.com/DaniilSintsov/interactive-onboarding/internal/tracking/model"
-	session "github.com/DaniilSintsov/interactive-onboarding/internal/tracking/repository/session/sqlc"
+	trackingModel "github.com/DaniilSintsov/interactive-onboarding/backend/internal/tracking/model"
+	session "github.com/DaniilSintsov/interactive-onboarding/backend/internal/tracking/repository/session/sqlc"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 )

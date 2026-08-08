@@ -8,7 +8,7 @@ import (
 	"time"
 	"unicode/utf8"
 
-	trackingModel "github.com/DaniilSintsov/interactive-onboarding/internal/tracking/model"
+	trackingModel "github.com/DaniilSintsov/interactive-onboarding/backend/internal/tracking/model"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
 )

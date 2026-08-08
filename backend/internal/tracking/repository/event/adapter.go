@@ -3,10 +3,10 @@ package event
 import (
 	"context"
 
-	trackingModel "github.com/DaniilSintsov/interactive-onboarding/internal/tracking/model"
-	event "github.com/DaniilSintsov/interactive-onboarding/internal/tracking/repository/event/sqlc"
-	sessionRepository "github.com/DaniilSintsov/interactive-onboarding/internal/tracking/repository/session"
-	trackingService "github.com/DaniilSintsov/interactive-onboarding/internal/tracking/service"
+	trackingModel "github.com/DaniilSintsov/interactive-onboarding/backend/internal/tracking/model"
+	event "github.com/DaniilSintsov/interactive-onboarding/backend/internal/tracking/repository/event/sqlc"
+	sessionRepository "github.com/DaniilSintsov/interactive-onboarding/backend/internal/tracking/repository/session"
+	trackingService "github.com/DaniilSintsov/interactive-onboarding/backend/internal/tracking/service"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
