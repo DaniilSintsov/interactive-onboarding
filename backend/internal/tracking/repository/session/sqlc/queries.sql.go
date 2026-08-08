@@ -13,23 +13,23 @@ import (
 )
 
 const changeSessionStatus = `-- name: ChangeSessionStatus :one
-UPDATE "OnboardingSession"
+UPDATE onboarding.sessions
 SET "status" = $1, "finished_at" = $2
-WHERE "session_id" = $3 AND "status" = 'active'
-RETURNING session_id, scenario_id, user_id, status, started_at, finished_at
+WHERE "id" = $3 AND "status" = 'active'
+RETURNING id, scenario_id, user_id, status, started_at, finished_at
 `
 
 type ChangeSessionStatusParams struct {
-	Status     string           `json:"status"`
-	FinishedAt pgtype.Timestamp `json:"finished_at"`
-	SessionID  uuid.UUID        `json:"session_id"`
+	Status     string             `json:"status"`
+	FinishedAt pgtype.Timestamptz `json:"finished_at"`
+	ID         uuid.UUID          `json:"id"`
 }
 
 func (q *Queries) ChangeSessionStatus(ctx context.Context, arg ChangeSessionStatusParams) (OnboardingSession, error) {
-	row := q.db.QueryRow(ctx, changeSessionStatus, arg.Status, arg.FinishedAt, arg.SessionID)
+	row := q.db.QueryRow(ctx, changeSessionStatus, arg.Status, arg.FinishedAt, arg.ID)
 	var i OnboardingSession
 	err := row.Scan(
-		&i.SessionID,
+		&i.ID,
 		&i.ScenarioID,
 		&i.UserID,
 		&i.Status,
@@ -40,25 +40,25 @@ func (q *Queries) ChangeSessionStatus(ctx context.Context, arg ChangeSessionStat
 }
 
 const createSession = `-- name: CreateSession :one
-INSERT INTO "OnboardingSession"
-  ("session_id", "scenario_id", "user_id", "status", "started_at", "finished_at")
+INSERT INTO onboarding.sessions
+  ("id", "scenario_id", "user_id", "status", "started_at", "finished_at")
 VALUES
   ($1, $2, $3, $4, $5, $6)
-RETURNING session_id, scenario_id, user_id, status, started_at, finished_at
+RETURNING id, scenario_id, user_id, status, started_at, finished_at
 `
 
 type CreateSessionParams struct {
-	SessionID  uuid.UUID        `json:"session_id"`
-	ScenarioID uuid.UUID        `json:"scenario_id"`
-	UserID     string           `json:"user_id"`
-	Status     string           `json:"status"`
-	StartedAt  pgtype.Timestamp `json:"started_at"`
-	FinishedAt pgtype.Timestamp `json:"finished_at"`
+	ID         uuid.UUID          `json:"id"`
+	ScenarioID uuid.UUID          `json:"scenario_id"`
+	UserID     string             `json:"user_id"`
+	Status     string             `json:"status"`
+	StartedAt  pgtype.Timestamptz `json:"started_at"`
+	FinishedAt pgtype.Timestamptz `json:"finished_at"`
 }
 
 func (q *Queries) CreateSession(ctx context.Context, arg CreateSessionParams) (OnboardingSession, error) {
 	row := q.db.QueryRow(ctx, createSession,
-		arg.SessionID,
+		arg.ID,
 		arg.ScenarioID,
 		arg.UserID,
 		arg.Status,
@@ -67,7 +67,7 @@ func (q *Queries) CreateSession(ctx context.Context, arg CreateSessionParams) (O
 	)
 	var i OnboardingSession
 	err := row.Scan(
-		&i.SessionID,
+		&i.ID,
 		&i.ScenarioID,
 		&i.UserID,
 		&i.Status,
@@ -78,8 +78,8 @@ func (q *Queries) CreateSession(ctx context.Context, arg CreateSessionParams) (O
 }
 
 const getSessionByScenarioAndUser = `-- name: GetSessionByScenarioAndUser :one
-SELECT session_id, scenario_id, user_id, status, started_at, finished_at
-FROM "OnboardingSession"
+SELECT id, scenario_id, user_id, status, started_at, finished_at
+FROM onboarding.sessions
 WHERE "scenario_id" = $1 AND "user_id" = $2
 `
 
@@ -92,7 +92,7 @@ func (q *Queries) GetSessionByScenarioAndUser(ctx context.Context, arg GetSessio
 	row := q.db.QueryRow(ctx, getSessionByScenarioAndUser, arg.ScenarioID, arg.UserID)
 	var i OnboardingSession
 	err := row.Scan(
-		&i.SessionID,
+		&i.ID,
 		&i.ScenarioID,
 		&i.UserID,
 		&i.Status,
@@ -103,16 +103,16 @@ func (q *Queries) GetSessionByScenarioAndUser(ctx context.Context, arg GetSessio
 }
 
 const selectSessionById = `-- name: SelectSessionById :one
-SELECT session_id, scenario_id, user_id, status, started_at, finished_at
-FROM "OnboardingSession"
-WHERE "session_id" = $1
+SELECT id, scenario_id, user_id, status, started_at, finished_at
+FROM onboarding.sessions
+WHERE "id" = $1
 `
 
-func (q *Queries) SelectSessionById(ctx context.Context, sessionID uuid.UUID) (OnboardingSession, error) {
-	row := q.db.QueryRow(ctx, selectSessionById, sessionID)
+func (q *Queries) SelectSessionById(ctx context.Context, id uuid.UUID) (OnboardingSession, error) {
+	row := q.db.QueryRow(ctx, selectSessionById, id)
 	var i OnboardingSession
 	err := row.Scan(
-		&i.SessionID,
+		&i.ID,
 		&i.ScenarioID,
 		&i.UserID,
 		&i.Status,

@@ -61,7 +61,36 @@ type EventAcceptedResponse struct {
 	Duplicate bool            `json:"duplicate"`
 }
 
-type SessionCompletion struct {
-	Status     SessionStatus
-	FinishedAt string
+type ScenarioStatus string
+
+const (
+	ScenarioStatusEnabled       ScenarioStatus = "enabled"
+	ScenarioStatusDisabled      ScenarioStatus = "disabled"
+	ScenarioStatusInDevelopment ScenarioStatus = "in_development"
+)
+
+type Scenario struct {
+	ID          string         `json:"id"`
+	ProjectID   string         `json:"project_id"`
+	Name        string         `json:"name"`
+	Description string         `json:"description"`
+	PagePattern string         `json:"page_pattern"`
+	Status      ScenarioStatus `json:"status"`
+	PublishedAt *time.Time     `json:"published_at"`
+	CreatedAt   time.Time      `json:"created_at"`
+	UpdatedAt   time.Time      `json:"updated_at"`
+	DeletedAt   *time.Time     `json:"deleted_at"`
+}
+
+type Step struct {
+	ID           string          `json:"id"`
+	ScenarioID   string          `json:"scenario_id"`
+	StepNum      int             `json:"step_num"`
+	Title        string          `json:"title"`
+	Description  string          `json:"description"`
+	ElementID    string          `json:"element_id"`
+	FrontendData json.RawMessage `json:"frontend_data"`
+	CreatedAt    time.Time       `json:"created_at"`
+	UpdatedAt    time.Time       `json:"updated_at"`
+	DeletedAt    *time.Time      `json:"deleted_at"`
 }

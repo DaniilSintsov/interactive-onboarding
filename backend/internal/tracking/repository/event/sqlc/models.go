@@ -10,11 +10,11 @@ import (
 )
 
 type OnboardingEvent struct {
-	EventID    uuid.UUID        `json:"event_id"`
-	SessionID  uuid.UUID        `json:"session_id"`
-	StepID     pgtype.UUID      `json:"step_id"`
-	Type       string           `json:"type"`
-	Data       []byte           `json:"data"`
-	OccurredAt pgtype.Timestamp `json:"occurred_at"`
-	ReceivedAt pgtype.Timestamp `json:"received_at"`
+	ID         uuid.UUID          `json:"id"`
+	SessionID  uuid.UUID          `json:"session_id"`
+	StepID     pgtype.UUID        `json:"step_id"`
+	Type       string             `json:"type"`
+	Data       []byte             `json:"data"`
+	OccurredAt pgtype.Timestamptz `json:"occurred_at"`
+	ReceivedAt pgtype.Timestamptz `json:"received_at"`
 }

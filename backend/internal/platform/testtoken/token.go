@@ -1,4 +1,4 @@
-package test_token
+package testtoken
 
 import (
 	"crypto/rand"

@@ -434,7 +434,7 @@ paths:
         - Scenarios
       operationId: publishScenario
       summary: Опубликовать сценарий
-      description: Проверяет конфигурацию и переводит сценарий из in_development в enabled.
+      description: Переводит сценарий из in_development в enabled.
       security:
         - AdminBearer: []
       responses:
@@ -477,7 +477,7 @@ paths:
           $ref: '#/components/responses/Conflict'
         '422':
           $ref: '#/components/responses/ValidationError'
-      description: Повторно проверяет конфигурацию и переводит сценарий из disabled в enabled.
+      description: Переводит сценарий из disabled в enabled.
   /api/v1/scenarios/{scenarioId}/disable:
     parameters:
       - $ref: '#/components/parameters/ScenarioId'
@@ -512,7 +512,7 @@ paths:
       operationId: createScenarioTestToken
       summary: Создать токен для тестирования сценария
       description: |
-        Проверяет конфигурацию сценария и создаёт короткоживущий токен для его тестирования через SDK.
+        Создаёт короткоживущий токен для тестирования сценария через SDK.
         Токен может быть создан для неудалённого сценария в любом статусе. Срок действия задаётся backend.
         Полученное значение токена возвращается только при создании.
       security:
