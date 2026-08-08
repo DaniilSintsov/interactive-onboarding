@@ -4,6 +4,6 @@ import (
 	"net/http"
 )
 
-func RegisterRoutes(mux *http.ServeMux, h *PDFHandler) {
+func (h *PDFHandler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/v1/scenarios/{scenarioId}/report/pdf", h.GenerateScenarioPDFReport)
 }

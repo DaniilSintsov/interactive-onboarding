@@ -1,6 +1,7 @@
 package analyticshttp
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -18,26 +19,35 @@ func NewAnalyticsHandler(svc *service.AnalyticsService) *AnalyticsHandler {
 	return &AnalyticsHandler{service: svc}
 }
 
+func writeJSONError(w http.ResponseWriter, status int, code, message string) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	json.NewEncoder(w).Encode(map[string]string{
+		"code":    code,
+		"message": message,
+	})
+}
+
 func (h *AnalyticsHandler) GetScenarioAnalyticsTotal(w http.ResponseWriter, r *http.Request) {
 	id, err := httpserver.ParseUUIDPath(r, "scenarioId", "invalid_scenario_id")
 	if err != nil {
-		httpserver.WriteJSONError(w, http.StatusBadRequest, "invalid_scenario_id", err.Error())
+		writeJSONError(w, http.StatusBadRequest, "invalid_scenario_id", err.Error())
 		return
 	}
 
 	from, to, err := parseTimeRange(r)
 	if err != nil {
-		httpserver.WriteJSONError(w, http.StatusUnprocessableEntity, "invalid_time_range", err.Error())
+		writeJSONError(w, http.StatusUnprocessableEntity, "invalid_time_range", err.Error())
 		return
 	}
 
 	analytics, err := h.service.GetScenarioAnalytics(r.Context(), id.String(), from, to)
 	if err != nil {
 		if errors.Is(err, service.ErrScenarioNotFound) {
-			httpserver.WriteJSONError(w, http.StatusNotFound, "scenario_not_found", "Scenario not found")
+			writeJSONError(w, http.StatusNotFound, "scenario_not_found", "Scenario not found")
 			return
 		}
-		httpserver.WriteJSONError(w, http.StatusInternalServerError, "internal_error", "Internal server error")
+		writeJSONError(w, http.StatusInternalServerError, "internal_error", "Internal server error")
 		return
 	}
 
@@ -47,23 +57,23 @@ func (h *AnalyticsHandler) GetScenarioAnalyticsTotal(w http.ResponseWriter, r *h
 func (h *AnalyticsHandler) GetDetailedScenarioAnalytics(w http.ResponseWriter, r *http.Request) {
 	id, err := httpserver.ParseUUIDPath(r, "scenarioId", "invalid_scenario_id")
 	if err != nil {
-		httpserver.WriteJSONError(w, http.StatusBadRequest, "invalid_scenario_id", err.Error())
+		writeJSONError(w, http.StatusBadRequest, "invalid_scenario_id", err.Error())
 		return
 	}
 
 	from, to, err := parseTimeRange(r)
 	if err != nil {
-		httpserver.WriteJSONError(w, http.StatusUnprocessableEntity, "invalid_time_range", err.Error())
+		writeJSONError(w, http.StatusUnprocessableEntity, "invalid_time_range", err.Error())
 		return
 	}
 
 	analytics, err := h.service.GetDetailedScenarioAnalytics(r.Context(), id.String(), from, to)
 	if err != nil {
 		if errors.Is(err, service.ErrScenarioNotFound) {
-			httpserver.WriteJSONError(w, http.StatusNotFound, "scenario_not_found", "Scenario not found")
+			writeJSONError(w, http.StatusNotFound, "scenario_not_found", "Scenario not found")
 			return
 		}
-		httpserver.WriteJSONError(w, http.StatusInternalServerError, "internal_error", "Internal server error")
+		writeJSONError(w, http.StatusInternalServerError, "internal_error", "Internal server error")
 		return
 	}
 
@@ -73,23 +83,23 @@ func (h *AnalyticsHandler) GetDetailedScenarioAnalytics(w http.ResponseWriter, r
 func (h *AnalyticsHandler) GetProjectAnalyticsTotal(w http.ResponseWriter, r *http.Request) {
 	id, err := httpserver.ParseUUIDPath(r, "projectId", "invalid_project_id")
 	if err != nil {
-		httpserver.WriteJSONError(w, http.StatusBadRequest, "invalid_project_id", err.Error())
+		writeJSONError(w, http.StatusBadRequest, "invalid_project_id", err.Error())
 		return
 	}
 
 	from, to, err := parseTimeRange(r)
 	if err != nil {
-		httpserver.WriteJSONError(w, http.StatusUnprocessableEntity, "invalid_time_range", err.Error())
+		writeJSONError(w, http.StatusUnprocessableEntity, "invalid_time_range", err.Error())
 		return
 	}
 
 	analytics, err := h.service.GetProjectAnalytics(r.Context(), id.String(), from, to)
 	if err != nil {
 		if errors.Is(err, service.ErrProjectNotFound) {
-			httpserver.WriteJSONError(w, http.StatusNotFound, "project_not_found", "Project not found")
+			writeJSONError(w, http.StatusNotFound, "project_not_found", "Project not found")
 			return
 		}
-		httpserver.WriteJSONError(w, http.StatusInternalServerError, "internal_error", "Internal server error")
+		writeJSONError(w, http.StatusInternalServerError, "internal_error", "Internal server error")
 		return
 	}
 

@@ -115,6 +115,8 @@ func (s *AnalyticsService) GetDetailedScenarioAnalytics(ctx context.Context, sce
 		if stat.Shown > 0 {
 			skipRate = float64(stat.Skipped) / float64(stat.Shown)
 		}
+
+		// ✅ Исправленный dropOffRate через пользователей
 		dropOffRate := 0.0
 		if stat.Shown > 0 {
 			var nextShown int64
@@ -123,8 +125,13 @@ func (s *AnalyticsService) GetDetailedScenarioAnalytics(ctx context.Context, sce
 			} else {
 				nextShown = stepStats[i+1].Shown
 			}
-			dropOffRate = 1 - float64(nextShown)/float64(stat.Shown)
+			if nextShown > stat.Shown {
+				dropOffRate = 0.0
+			} else {
+				dropOffRate = 1 - float64(nextShown)/float64(stat.Shown)
+			}
 		}
+
 		steps[i] = StepAnalytics{
 			StepID:         stat.StepID,
 			Position:       stat.Position,

@@ -2,6 +2,7 @@ package pdfhttp
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -20,32 +21,41 @@ func NewPDFHandler(svc *service.AnalyticsService) *PDFHandler {
 	return &PDFHandler{analyticsService: svc}
 }
 
+func writeJSONError(w http.ResponseWriter, status int, code, message string) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	json.NewEncoder(w).Encode(map[string]string{
+		"code":    code,
+		"message": message,
+	})
+}
+
 func (h *PDFHandler) GenerateScenarioPDFReport(w http.ResponseWriter, r *http.Request) {
 	scenarioID, err := httpserver.ParseUUIDPath(r, "scenarioId", "invalid_scenario_id")
 	if err != nil {
-		httpserver.WriteJSONError(w, http.StatusBadRequest, "invalid_scenario_id", err.Error())
+		writeJSONError(w, http.StatusBadRequest, "invalid_scenario_id", err.Error())
 		return
 	}
 
 	from, to, err := parseTimeRange(r)
 	if err != nil {
-		httpserver.WriteJSONError(w, http.StatusUnprocessableEntity, "invalid_time_range", err.Error())
+		writeJSONError(w, http.StatusUnprocessableEntity, "invalid_time_range", err.Error())
 		return
 	}
 
 	analytics, err := h.analyticsService.GetDetailedScenarioAnalytics(r.Context(), scenarioID.String(), from, to)
 	if err != nil {
 		if errors.Is(err, service.ErrScenarioNotFound) {
-			httpserver.WriteJSONError(w, http.StatusNotFound, "scenario_not_found", "Scenario not found")
+			writeJSONError(w, http.StatusNotFound, "scenario_not_found", "Scenario not found")
 			return
 		}
-		httpserver.WriteJSONError(w, http.StatusInternalServerError, "internal_error", "Internal server error")
+		writeJSONError(w, http.StatusInternalServerError, "internal_error", "Internal server error")
 		return
 	}
 
 	pdfData, err := generatePDF(analytics)
 	if err != nil {
-		httpserver.WriteJSONError(w, http.StatusInternalServerError, "pdf_generation_error", "Failed to generate PDF")
+		writeJSONError(w, http.StatusInternalServerError, "pdf_generation_error", "Failed to generate PDF")
 		return
 	}
 
@@ -62,6 +72,7 @@ func generatePDF(data service.DetailedScenarioAnalytics) ([]byte, error) {
 	pdf.AddPage()
 
 	pdf.AddUTF8Font("DejaVu", "", "fonts/DejaVuSans.ttf")
+	pdf.AddUTF8Font("DejaVu", "B", "fonts/DejaVuSans.ttf")
 	pdf.SetFont("DejaVu", "", 14)
 
 	pdf.Cell(40, 10, "Scenario Analytics Report")
@@ -91,9 +102,11 @@ func generatePDF(data service.DetailedScenarioAnalytics) ([]byte, error) {
 
 	pdf.SetFont("DejaVu", "", 11)
 	for _, step := range data.Steps {
+		// Обрезаем через []rune для корректной работы с UTF-8
 		title := step.Title
-		if len(title) > 20 {
-			title = title[:20] + "..."
+		runes := []rune(title)
+		if len(runes) > 20 {
+			title = string(runes[:20]) + "..."
 		}
 		pdf.Cell(30, 8, title)
 		pdf.Cell(30, 8, fmt.Sprintf("%d", step.Position))
