@@ -1,10 +1,14 @@
 package projecthttp
 
-import "net/http"
+import (
+	"net/http"
+
+	"github.com/DaniilSintsov/interactive-onboarding/backend/internal/platform/httpserver"
+)
 
 func (h *Handler) createProject(w http.ResponseWriter, r *http.Request) {
 	var request CreateProjectRequest
-	if err := parseJSON(w, r, &request); err != nil {
+	if err := httpserver.ParseJSON(w, r, &request); err != nil {
 		h.handleError(w, r, err)
 		return
 	}
@@ -18,7 +22,7 @@ func (h *Handler) createProject(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeJSON(
+	httpserver.WriteJSON(
 		w,
 		http.StatusCreated,
 		projectWithElementsToResponse(result),
@@ -26,14 +30,14 @@ func (h *Handler) createProject(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) updateProject(w http.ResponseWriter, r *http.Request) {
-	projectID, err := parseUUIDPath(r, "projectId")
+	projectID, err := httpserver.ParseUUIDPath(r, "projectId", "invalid_project_id")
 	if err != nil {
 		h.handleError(w, r, err)
 		return
 	}
 
 	var request UpdateProjectRequest
-	if err := parseJSON(w, r, &request); err != nil {
+	if err := httpserver.ParseJSON(w, r, &request); err != nil {
 		h.handleError(w, r, err)
 		return
 	}
@@ -42,7 +46,7 @@ func (h *Handler) updateProject(w http.ResponseWriter, r *http.Request) {
 		h.handleError(
 			w,
 			r,
-			newRequestError(
+			httpserver.NewRequestError(
 				"invalid_request_body",
 				"name is required",
 				map[string]any{"field": "name"},
@@ -58,7 +62,7 @@ func (h *Handler) updateProject(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeJSON(
+	httpserver.WriteJSON(
 		w,
 		http.StatusOK,
 		projectWithElementsToResponse(result),
@@ -66,7 +70,7 @@ func (h *Handler) updateProject(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) deleteProject(w http.ResponseWriter, r *http.Request) {
-	projectID, err := parseUUIDPath(r, "projectId")
+	projectID, err := httpserver.ParseUUIDPath(r, "projectId", "invalid_project_id")
 	if err != nil {
 		h.handleError(w, r, err)
 		return
@@ -81,7 +85,7 @@ func (h *Handler) deleteProject(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) listProjects(w http.ResponseWriter, r *http.Request) {
-	limit, offset, err := parsePagination(r)
+	limit, offset, err := httpserver.ParsePagination(r)
 	if err != nil {
 		h.handleError(w, r, err)
 		return
@@ -93,11 +97,11 @@ func (h *Handler) listProjects(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeJSON(w, http.StatusOK, projectListToResponse(result))
+	httpserver.WriteJSON(w, http.StatusOK, projectListToResponse(result))
 }
 
 func (h *Handler) getProject(w http.ResponseWriter, r *http.Request) {
-	projectID, err := parseUUIDPath(r, "projectId")
+	projectID, err := httpserver.ParseUUIDPath(r, "projectId", "invalid_project_id")
 	if err != nil {
 		h.handleError(w, r, err)
 		return
@@ -109,5 +113,5 @@ func (h *Handler) getProject(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeJSON(w, http.StatusOK, projectWithElementsToResponse(result))
+	httpserver.WriteJSON(w, http.StatusOK, projectWithElementsToResponse(result))
 }

@@ -11,12 +11,13 @@ import (
 
 	"github.com/DaniilSintsov/interactive-onboarding/backend/internal/config"
 	"github.com/DaniilSintsov/interactive-onboarding/backend/internal/platform/httpserver"
+	platformmiddleware "github.com/DaniilSintsov/interactive-onboarding/backend/internal/platform/middleware"
 	"github.com/DaniilSintsov/interactive-onboarding/backend/internal/platform/postgres"
+	"github.com/DaniilSintsov/interactive-onboarding/backend/internal/platform/postgres/transactor"
 	projecthttp "github.com/DaniilSintsov/interactive-onboarding/backend/internal/project/http"
 	"github.com/DaniilSintsov/interactive-onboarding/backend/internal/project/keygen"
 	elementDB "github.com/DaniilSintsov/interactive-onboarding/backend/internal/project/repository/postgres/element"
 	projectDB "github.com/DaniilSintsov/interactive-onboarding/backend/internal/project/repository/postgres/project"
-	"github.com/DaniilSintsov/interactive-onboarding/backend/internal/project/repository/transactor"
 	"github.com/DaniilSintsov/interactive-onboarding/backend/internal/project/usecase/element"
 	"github.com/DaniilSintsov/interactive-onboarding/backend/internal/project/usecase/project"
 	db "github.com/DaniilSintsov/interactive-onboarding/backend/migrations"
@@ -89,7 +90,10 @@ func Run(logger *zap.Logger, cfg *config.Config) error {
 
 	pdfHandler := pdfhttp.NewPDFHandler(analyticsSvc)
 
-	server := httpserver.NewServer(cfg.HTTPConfig)
+	server := httpserver.NewServer(
+		cfg.HTTPConfig,
+		platformmiddleware.CORS(cfg.HTTPConfig.AllowedOrigins),
+	)
 
 	server.RegisterRouteGroup(
 		"/api/v1/",
