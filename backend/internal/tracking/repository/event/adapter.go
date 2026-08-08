@@ -3,53 +3,30 @@ package event
 import (
 	"context"
 
+	"github.com/DaniilSintsov/interactive-onboarding/backend/internal/platform/postgres/transactor"
 	trackingModel "github.com/DaniilSintsov/interactive-onboarding/backend/internal/tracking/model"
 	event "github.com/DaniilSintsov/interactive-onboarding/backend/internal/tracking/repository/event/sqlc"
-	sessionRepository "github.com/DaniilSintsov/interactive-onboarding/backend/internal/tracking/repository/session"
-	trackingService "github.com/DaniilSintsov/interactive-onboarding/backend/internal/tracking/service"
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type EventRepository struct {
-	conn    *pgx.Conn
 	queries *event.Queries
 }
 
-func NewEventRepository(db *pgx.Conn) *EventRepository {
-	q := event.New(db)
+func NewEventRepository(db *pgxpool.Pool) *EventRepository {
 	return &EventRepository{
-		conn:    db,
-		queries: q,
+		queries: event.New(db),
 	}
 }
 
-func (e *EventRepository) WithinTransaction(
-	ctx context.Context,
-	fn func(trackingService.SessionRepository, trackingService.EventRepository) error,
-) (err error) {
-	tx, err := e.conn.Begin(ctx)
-	if err != nil {
-		return err
+func (e *EventRepository) getQueries(ctx context.Context) *event.Queries {
+	if tx, err := transactor.ExtractTx(ctx); err == nil {
+		return e.queries.WithTx(tx)
 	}
-	committed := false
-	defer func() {
-		if !committed {
-			_ = tx.Rollback(ctx)
-		}
-	}()
 
-	txEvents := &EventRepository{queries: e.queries.WithTx(tx)}
-	txSessions := sessionRepository.NewSessionRepository(tx)
-	if err = fn(txSessions, txEvents); err != nil {
-		return err
-	}
-	if err = tx.Commit(ctx); err != nil {
-		return err
-	}
-	committed = true
-	return nil
+	return e.queries
 }
 
 func (e *EventRepository) RecordEvent(
@@ -84,7 +61,7 @@ func (e *EventRepository) RecordEvent(
 		ReceivedAt: pgtype.Timestamptz{Time: onboarding.ReceivedAt, Valid: true},
 	}
 
-	createdEvent, err := e.queries.CreateEvent(ctx, createEvent)
+	createdEvent, err := e.getQueries(ctx).CreateEvent(ctx, createEvent)
 	if err != nil {
 		return nil, err
 	}
@@ -100,7 +77,7 @@ func (e *EventRepository) GetEventById(
 		return nil, err
 	}
 
-	found, err := e.queries.GetEventById(ctx, parsedEventID)
+	found, err := e.getQueries(ctx).GetEventById(ctx, parsedEventID)
 	if err != nil {
 		return nil, err
 	}

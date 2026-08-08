@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"testing"
 	"time"
@@ -15,7 +16,7 @@ import (
 func TestCreateEventRecordsEventInTransaction(t *testing.T) {
 	ctx := testContext()
 	sessions := &sessionFake{}
-	events := &eventFake{getErr: sql.ErrNoRows, txSessions: sessions}
+	events := &eventFake{getErr: sql.ErrNoRows}
 	service := newEventService(sessions, events)
 	request := validEvent(trackingModel.EventTypeStepShown)
 
@@ -23,7 +24,7 @@ func TestCreateEventRecordsEventInTransaction(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CreateEvent() error = %v", err)
 	}
-	if !events.transactionCalled {
+	if !service.transactor.(*transactorFake).called {
 		t.Fatal("CreateEvent() did not use a transaction")
 	}
 	if events.recorded == nil || events.recorded.ID != request.ID {
@@ -42,7 +43,7 @@ func TestCreateEventRecordsEventInTransaction(t *testing.T) {
 
 func TestCreateEventCompletionUpdatesOnlyItsSession(t *testing.T) {
 	sessions := &sessionFake{}
-	events := &eventFake{getErr: sql.ErrNoRows, txSessions: sessions}
+	events := &eventFake{getErr: sql.ErrNoRows}
 	service := newEventService(sessions, events)
 	request := validEvent(trackingModel.EventTypeOnboardingCompleted)
 
@@ -66,8 +67,8 @@ func TestCreateEventCompletionUpdatesOnlyItsSession(t *testing.T) {
 
 func TestCreateEventReturnsExistingDuplicateWithoutChangingSession(t *testing.T) {
 	existing := &trackingModel.EventAcceptedResponse{Duplicate: true}
-	sessions := &sessionFake{}
-	events := &eventFake{getResponse: existing, txSessions: sessions}
+	sessions := &sessionFake{getSession: &trackingModel.OnboardingSession{Status: trackingModel.SessionStatusCompleted}}
+	events := &eventFake{getResponse: existing}
 	service := newEventService(sessions, events)
 
 	response, err := service.CreateEvent(testContext(), validEvent(trackingModel.EventTypeOnboardingCompleted))
@@ -79,6 +80,9 @@ func TestCreateEventReturnsExistingDuplicateWithoutChangingSession(t *testing.T)
 	}
 	if events.recorded != nil || sessions.updateCalls != 0 {
 		t.Fatal("duplicate event was recorded or changed its session")
+	}
+	if sessions.getSessionCalls != 0 {
+		t.Fatalf("GetSessionById() calls = %d, want 0 for duplicate event", sessions.getSessionCalls)
 	}
 }
 
@@ -92,8 +96,46 @@ func TestCreateEventRejectsInvalidRequestBeforeTransaction(t *testing.T) {
 	if !errors.Is(err, ErrInvalidRequest) {
 		t.Fatalf("CreateEvent() error = %v, want ErrInvalidRequest", err)
 	}
-	if events.transactionCalled {
+	if service.transactor.(*transactorFake).called {
 		t.Fatal("invalid request started a transaction")
+	}
+}
+
+func TestValidateEventNormalizesMissingDataToEmptyObject(t *testing.T) {
+	request := validEvent(trackingModel.EventTypeStepShown)
+
+	_, err := validateEvent(request)
+
+	if err != nil {
+		t.Fatalf("validateEvent() error = %v", err)
+	}
+	if got := string(request.Data); got != `{}` {
+		t.Fatalf("data = %s, want {}", got)
+	}
+}
+
+func TestValidateEventRejectsNonObjectData(t *testing.T) {
+	tests := []struct {
+		name string
+		data json.RawMessage
+	}{
+		{name: "array", data: json.RawMessage(`[]`)},
+		{name: "string", data: json.RawMessage(`"value"`)},
+		{name: "number", data: json.RawMessage(`1`)},
+		{name: "null", data: json.RawMessage(`null`)},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			request := validEvent(trackingModel.EventTypeStepShown)
+			request.Data = tt.data
+
+			_, err := validateEvent(request)
+
+			if !errors.Is(err, ErrInvalidRequest) {
+				t.Fatalf("validateEvent() error = %v, want ErrInvalidRequest", err)
+			}
+		})
 	}
 }
 
@@ -103,7 +145,6 @@ func TestCreateEventHandlesConcurrentDuplicate(t *testing.T) {
 		getErr:       sql.ErrNoRows,
 		recordErr:    &pgconn.PgError{Code: "23505"},
 		getAfterFail: existing,
-		txSessions:   &sessionFake{},
 	}
 	service := newEventService(&sessionFake{}, events)
 
@@ -117,12 +158,19 @@ func TestCreateEventHandlesConcurrentDuplicate(t *testing.T) {
 }
 
 func validEvent(eventType trackingModel.EventType) *trackingModel.CreateEventRequest {
-	return &trackingModel.CreateEventRequest{
+	event := &trackingModel.CreateEventRequest{
 		ID:         uuid.NewString(),
 		SessionID:  uuid.NewString(),
 		Type:       eventType,
 		OccurredAt: "2026-08-06T10:11:12.123456789Z",
 	}
+	if eventType == trackingModel.EventTypeStepShown ||
+		eventType == trackingModel.EventTypeStepCompleted ||
+		eventType == trackingModel.EventTypeStepSkipped {
+		stepID := uuid.NewString()
+		event.StepID = &stepID
+	}
+	return event
 }
 
 func mustParseTime(t *testing.T, value string) time.Time {
@@ -139,7 +187,16 @@ func testContext() context.Context {
 }
 
 func newEventService(sessions *sessionFake, events *eventFake) *TrackingService {
-	return NewTrackingService(sessions, events, &scenarioFake{}, &stepFake{})
+	return NewTrackingService(sessions, events, &scenarioFake{}, &stepFake{}, &transactorFake{})
+}
+
+type transactorFake struct {
+	called bool
+}
+
+func (t *transactorFake) WithTx(ctx context.Context, fn func(context.Context) error) error {
+	t.called = true
+	return fn(ctx)
 }
 
 type sessionFake struct {
@@ -149,6 +206,7 @@ type sessionFake struct {
 	finishedAt       time.Time
 	getSession       *trackingModel.OnboardingSession
 	getSessionErr    error
+	getSessionCalls  int
 }
 
 func (*sessionFake) CreateSession(context.Context, *trackingModel.OnboardingSession) (*trackingModel.OnboardingSession, error) {
@@ -168,6 +226,7 @@ func (*sessionFake) GetSessionByScenarioAndUser(context.Context, string, string)
 }
 
 func (s *sessionFake) GetSessionById(context.Context, string) (*trackingModel.OnboardingSession, error) {
+	s.getSessionCalls++
 	if s.getSession != nil || s.getSessionErr != nil {
 		return s.getSession, s.getSessionErr
 	}
@@ -195,17 +254,18 @@ type stepFake struct {
 }
 
 func (s *stepFake) GetStepById(context.Context, string) (*trackingModel.Step, error) {
+	if s.step == nil && s.err == nil {
+		return &trackingModel.Step{ScenarioID: "scenario-1"}, nil
+	}
 	return s.step, s.err
 }
 
 type eventFake struct {
-	getResponse       *trackingModel.EventAcceptedResponse
-	getAfterFail      *trackingModel.EventAcceptedResponse
-	getErr            error
-	recordErr         error
-	recorded          *trackingModel.OnboardingEvent
-	transactionCalled bool
-	txSessions        *sessionFake
+	getResponse  *trackingModel.EventAcceptedResponse
+	getAfterFail *trackingModel.EventAcceptedResponse
+	getErr       error
+	recordErr    error
+	recorded     *trackingModel.OnboardingEvent
 }
 
 func (e *eventFake) RecordEvent(_ context.Context, event *trackingModel.OnboardingEvent) (*trackingModel.EventAcceptedResponse, error) {
@@ -224,12 +284,4 @@ func (e *eventFake) GetEventById(context.Context, string) (*trackingModel.EventA
 		return e.getResponse, nil
 	}
 	return nil, e.getErr
-}
-
-func (e *eventFake) WithinTransaction(_ context.Context, fn func(SessionRepository, EventRepository) error) error {
-	e.transactionCalled = true
-	if e.txSessions == nil {
-		e.txSessions = &sessionFake{}
-	}
-	return fn(e.txSessions, e)
 }

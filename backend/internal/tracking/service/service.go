@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"time"
@@ -32,7 +33,9 @@ type (
 	EventRepository interface {
 		RecordEvent(context.Context, *trackingModel.OnboardingEvent) (*trackingModel.EventAcceptedResponse, error)
 		GetEventById(context.Context, string) (*trackingModel.EventAcceptedResponse, error)
-		WithinTransaction(context.Context, func(SessionRepository, EventRepository) error) error
+	}
+	Transactor interface {
+		WithTx(context.Context, func(context.Context) error) error
 	}
 	ScenarioRepository interface {
 		GetScenarioByIdAndProjectKey(ctx context.Context, scenarioId, projectKey string) (*trackingModel.Scenario, error)
@@ -43,18 +46,20 @@ type (
 )
 
 type TrackingService struct {
-	sessions  SessionRepository
-	events    EventRepository
-	scenarios ScenarioRepository
-	steps     StepRepository
+	sessions   SessionRepository
+	events     EventRepository
+	scenarios  ScenarioRepository
+	steps      StepRepository
+	transactor Transactor
 }
 
-func NewTrackingService(s SessionRepository, e EventRepository, sc ScenarioRepository, st StepRepository) *TrackingService {
+func NewTrackingService(s SessionRepository, e EventRepository, sc ScenarioRepository, st StepRepository, tx Transactor) *TrackingService {
 	return &TrackingService{
-		sessions:  s,
-		events:    e,
-		scenarios: sc,
-		steps:     st,
+		sessions:   s,
+		events:     e,
+		scenarios:  sc,
+		steps:      st,
+		transactor: tx,
 	}
 }
 
@@ -97,14 +102,6 @@ func (s *TrackingService) CreateEvent(ctx context.Context, event *trackingModel.
 	if err != nil {
 		return nil, err
 	}
-	existing, err := s.events.GetEventById(ctx, event.ID)
-	switch {
-	case err == nil:
-		return existing, nil
-	case !errors.Is(err, sql.ErrNoRows):
-		return nil, fmt.Errorf("get event %q: %w", event.ID, err)
-	}
-
 	session, err := s.sessions.GetSessionById(ctx, event.SessionID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -147,8 +144,8 @@ func (s *TrackingService) CreateEvent(ctx context.Context, event *trackingModel.
 	}
 
 	var response *trackingModel.EventAcceptedResponse
-	create := func(sessions SessionRepository, events EventRepository) error {
-		existing, err := events.GetEventById(ctx, event.ID)
+	create := func(ctx context.Context) error {
+		existing, err := s.events.GetEventById(ctx, event.ID)
 		switch {
 		case err == nil:
 			response = existing
@@ -157,12 +154,12 @@ func (s *TrackingService) CreateEvent(ctx context.Context, event *trackingModel.
 			return fmt.Errorf("get event %q: %w", event.ID, err)
 		}
 
-		created, err := events.RecordEvent(ctx, onboardingEvent)
+		created, err := s.events.RecordEvent(ctx, onboardingEvent)
 		if err != nil {
 			return fmt.Errorf("record event %q: %w", event.ID, err)
 		}
 		if status, completesSession := completionStatus(event.Type); completesSession {
-			if _, err := sessions.UpdateSessionStatus(ctx, event.SessionID, status, occurredAt); err != nil {
+			if _, err := s.sessions.UpdateSessionStatus(ctx, event.SessionID, status, occurredAt); err != nil {
 				return fmt.Errorf("complete session %q: %w", event.SessionID, err)
 			}
 		}
@@ -170,7 +167,15 @@ func (s *TrackingService) CreateEvent(ctx context.Context, event *trackingModel.
 		return nil
 	}
 
-	err = s.events.WithinTransaction(ctx, create)
+	existing, err := s.events.GetEventById(ctx, event.ID)
+	switch {
+	case err == nil:
+		return existing, nil
+	case !errors.Is(err, sql.ErrNoRows):
+		return nil, fmt.Errorf("get event %q: %w", event.ID, err)
+	}
+
+	err = s.transactor.WithTx(ctx, create)
 	if err != nil {
 		if isUniqueViolation(err) {
 			existing, lookupErr := s.events.GetEventById(ctx, event.ID)
@@ -214,9 +219,22 @@ func validateEvent(event *trackingModel.CreateEventRequest) (time.Time, error) {
 		if _, err := uuid.Parse(*event.StepID); err != nil {
 			return time.Time{}, invalid("step_id must be a UUID")
 		}
+	} else {
+		if event.Type != trackingModel.EventTypeOnboardingSkipped &&
+			event.Type != trackingModel.EventTypeOnboardingCompleted {
+			return time.Time{}, invalid("step_id is required")
+		}
 	}
 	if !isEventType(event.Type) {
 		return time.Time{}, invalid("type is not supported")
+	}
+	if len(event.Data) == 0 {
+		event.Data = json.RawMessage(`{}`)
+	} else {
+		var data map[string]json.RawMessage
+		if err := json.Unmarshal(event.Data, &data); err != nil || data == nil {
+			return time.Time{}, invalid("data must be a JSON object")
+		}
 	}
 	occurredAt, err := time.Parse(time.RFC3339Nano, event.OccurredAt)
 	if err != nil {

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/DaniilSintsov/interactive-onboarding/backend/internal/platform/postgres/transactor"
 	trackingModel "github.com/DaniilSintsov/interactive-onboarding/backend/internal/tracking/model"
 	session "github.com/DaniilSintsov/interactive-onboarding/backend/internal/tracking/repository/session/sqlc"
 	"github.com/google/uuid"
@@ -22,6 +23,14 @@ func NewSessionRepository(db session.DBTX) *SessionRepository {
 	}
 }
 
+func (r *SessionRepository) getQueries(ctx context.Context) *session.Queries {
+	if tx, err := transactor.ExtractTx(ctx); err == nil {
+		return r.queries.WithTx(tx)
+	}
+
+	return r.queries
+}
+
 func (r *SessionRepository) CreateSession(
 	ctx context.Context, onboarding *trackingModel.OnboardingSession,
 ) (*trackingModel.OnboardingSession, error) {
@@ -37,7 +46,7 @@ func (r *SessionRepository) CreateSession(
 	if err != nil {
 		return nil, err
 	}
-	created, err := r.queries.CreateSession(ctx, session.CreateSessionParams{
+	created, err := r.getQueries(ctx).CreateSession(ctx, session.CreateSessionParams{
 		ID:         sessionID,
 		ScenarioID: scenarioID,
 		UserID:     onboarding.UserID,
@@ -59,7 +68,7 @@ func (r *SessionRepository) UpdateSessionStatus(
 	if err != nil {
 		return nil, err
 	}
-	updated, err := r.queries.ChangeSessionStatus(ctx, session.ChangeSessionStatusParams{
+	updated, err := r.getQueries(ctx).ChangeSessionStatus(ctx, session.ChangeSessionStatusParams{
 		ID:         parsedSessionID,
 		Status:     string(status),
 		FinishedAt: timestamp(&finishedAt),
@@ -78,7 +87,7 @@ func (r *SessionRepository) GetSessionByScenarioAndUser(
 	if err != nil {
 		return nil, err
 	}
-	found, err := r.queries.GetSessionByScenarioAndUser(ctx, session.GetSessionByScenarioAndUserParams{
+	found, err := r.getQueries(ctx).GetSessionByScenarioAndUser(ctx, session.GetSessionByScenarioAndUserParams{
 		ScenarioID: parsedScenarioID,
 		UserID:     userID,
 	})
@@ -97,7 +106,7 @@ func (r *SessionRepository) GetSessionById(
 		return nil, err
 	}
 
-	found, err := r.queries.SelectSessionById(ctx, parsedSessionID)
+	found, err := r.getQueries(ctx).SelectSessionById(ctx, parsedSessionID)
 	if err != nil {
 		return nil, err
 	}
