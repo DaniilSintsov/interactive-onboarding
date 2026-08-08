@@ -1,4 +1,8 @@
-import { hasMeaningfulValue, parseRuntimeScenario } from "./logic.js";
+import {
+  hasMeaningfulValue,
+  parseRuntimeScenario,
+  parseRuntimeScenarioResolveResponse,
+} from "./logic.js";
 import type {
   CreateOnboardingOptions,
   EventType,
@@ -17,10 +21,11 @@ export type {
 } from "./types.js";
 
 type Progress = {
-  version: 1;
+  version: 2;
   projectKey: string;
   userId: string;
-  preview: boolean;
+  usesTestToken: boolean;
+  isTest: boolean;
   sessionId: string | null;
   scenario: RuntimeScenario;
   stepIndex: number;
@@ -54,10 +59,11 @@ function parseProgress(value: unknown, projectKey: string): Progress | null {
   try {
     const scenario = parseRuntimeScenario(value.scenario);
     if (
-      value.version !== 1 ||
+      value.version !== 2 ||
       value.projectKey !== projectKey ||
       typeof value.userId !== "string" ||
-      typeof value.preview !== "boolean" ||
+      typeof value.usesTestToken !== "boolean" ||
+      typeof value.isTest !== "boolean" ||
       (value.sessionId !== null && typeof value.sessionId !== "string") ||
       !Number.isInteger(value.stepIndex) ||
       Number(value.stepIndex) < 0 ||
@@ -69,15 +75,20 @@ function parseProgress(value: unknown, projectKey: string): Progress | null {
       return null;
     }
 
-    if ((value.preview && value.sessionId !== null) || (!value.preview && !value.sessionId)) {
+    if (
+      (value.isTest && value.sessionId !== null) ||
+      (!value.isTest && value.accepted && !value.sessionId) ||
+      (!value.accepted && value.sessionId !== null)
+    ) {
       return null;
     }
 
     return {
-      version: 1,
+      version: 2,
       projectKey,
       userId: value.userId,
-      preview: value.preview,
+      usesTestToken: value.usesTestToken,
+      isTest: value.isTest,
       sessionId: value.sessionId,
       scenario,
       stepIndex: Number(value.stepIndex),
@@ -92,7 +103,7 @@ function parseProgress(value: unknown, projectKey: string): Progress | null {
 export function createOnboarding(options: CreateOnboardingOptions): Onboarding {
   const projectKey = assertOption(options.projectKey, "projectKey");
   const runtimeUrl = assertOption(options.runtimeUrl, "runtimeUrl").replace(/\/+$/, "");
-  const storageKey = `@interactive-onboarding/sdk:v1:${projectKey}`;
+  const storageKey = `@interactive-onboarding/sdk:v2:${projectKey}`;
 
   let progress: Progress | null = null;
   let view: OnboardingView | null = null;
@@ -105,8 +116,11 @@ export function createOnboarding(options: CreateOnboardingOptions): Onboarding {
   let positionFrame: number | null = null;
   let listenersAttached = false;
   let completingStepId: string | null = null;
+  let accepting = false;
   let startController: AbortController | null = null;
+  let sessionController: AbortController | null = null;
   let startPromise: Promise<void> | null = null;
+  let pendingDismiss: (() => void) | null = null;
   let generation = 0;
   let eventQueue: Promise<void> = Promise.resolve();
 
@@ -149,15 +163,24 @@ export function createOnboarding(options: CreateOnboardingOptions): Onboarding {
     }
   }
 
-  async function post(path: string, body: unknown, signal?: AbortSignal, keepalive = false): Promise<unknown> {
+  async function post(
+    path: string,
+    body: unknown,
+    signal?: AbortSignal,
+    keepalive = false,
+    testToken?: string,
+  ): Promise<unknown> {
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+      "X-Project-Key": projectKey,
+    };
+    if (testToken) headers["X-Scenario-Test-Token"] = testToken;
+
     const request: RequestInit = {
       method: "POST",
       credentials: "same-origin",
       keepalive,
-      headers: {
-        "Content-Type": "application/json",
-        "X-Project-Key": projectKey,
-      },
+      headers,
       body: JSON.stringify(body),
     };
     if (signal) request.signal = signal;
@@ -177,7 +200,7 @@ export function createOnboarding(options: CreateOnboardingOptions): Onboarding {
     data: EventData = {},
     stepId?: string,
   ): Promise<void> {
-    if (state.preview || !state.sessionId) return Promise.resolve();
+    if (state.isTest || !state.sessionId) return Promise.resolve();
 
     const payload: Record<string, unknown> = {
       id: crypto.randomUUID(),
@@ -247,6 +270,7 @@ export function createOnboarding(options: CreateOnboardingOptions): Onboarding {
     }
     targetEvents = [];
     target = null;
+    pendingDismiss = null;
     restoreHighlight();
     view?.hideCard();
   }
@@ -262,7 +286,9 @@ export function createOnboarding(options: CreateOnboardingOptions): Onboarding {
   const onViewportChange = (): void => positionView();
 
   const onEscape = (event: KeyboardEvent): void => {
-    if (event.key === "Escape" && progress) void skipOnboarding("user_closed");
+    if (event.key !== "Escape" || accepting) return;
+    if (progress) void skipOnboarding("user_closed");
+    else pendingDismiss?.();
   };
 
   function ensureView(): OnboardingView {
@@ -387,7 +413,7 @@ export function createOnboarding(options: CreateOnboardingOptions): Onboarding {
       ensureView().showInvitation({
         name: state.scenario.name,
         description: state.scenario.description,
-        onAccept: acceptInvitation,
+        onAccept: () => void acceptInvitation(),
         onDecline: () => void skipOnboarding("invitation_declined"),
       });
       return;
@@ -412,20 +438,43 @@ export function createOnboarding(options: CreateOnboardingOptions): Onboarding {
     void skipOnboarding("left_expected_path");
   }
 
-  function acceptInvitation(): void {
-    if (!progress || progress.accepted) return;
-    progress = { ...progress, accepted: true };
-    writeProgress();
-    const step = currentStep();
-    if (!step) return;
+  async function acceptInvitation(): Promise<void> {
+    const state = progress;
+    if (!state || state.accepted || accepting) return;
 
-    if (step.frontend_data.page_path === window.location.pathname) {
-      renderForCurrentPage();
-    } else {
-      clearTarget();
-      const destination = new URL(step.frontend_data.page_path, window.location.href);
-      if (progress.preview) destination.searchParams.set("preview", "1");
-      window.location.assign(`${destination.pathname}${destination.search}${destination.hash}`);
+    accepting = true;
+    view?.setError(null);
+    view?.setBusy(true);
+    try {
+      let sessionId: string | null = null;
+      if (!state.isTest) {
+        const controller = new AbortController();
+        sessionController = controller;
+        sessionId = await createSession(state.scenario.id, state.userId, controller.signal);
+        if (progress !== state) return;
+      }
+
+      progress = { ...state, accepted: true, sessionId };
+      writeProgress();
+      const step = currentStep();
+      if (!step) return;
+
+      if (step.frontend_data.page_path === window.location.pathname) {
+        renderForCurrentPage();
+      } else {
+        clearTarget();
+        const destination = new URL(step.frontend_data.page_path, window.location.href);
+        window.location.assign(`${destination.pathname}${destination.search}${destination.hash}`);
+      }
+    } catch (error) {
+      if ((error as { name?: unknown }).name !== "AbortError") {
+        console.error("Onboarding session could not be started", error);
+        view?.setError("Не удалось начать маршрут. Попробуйте ещё раз.");
+      }
+    } finally {
+      accepting = false;
+      sessionController = null;
+      view?.setBusy(false);
     }
   }
 
@@ -465,13 +514,19 @@ export function createOnboarding(options: CreateOnboardingOptions): Onboarding {
     completingStepId = null;
   }
 
-  async function resolveScenario(userId: string, signal: AbortSignal): Promise<RuntimeScenario | null> {
+  async function resolveScenarios(
+    userId: string,
+    testToken: string | undefined,
+    signal: AbortSignal,
+  ) {
     const response = await post(
       "/scenarios/resolve",
       { page: window.location.pathname, user_id: userId },
       signal,
+      false,
+      testToken,
     );
-    return response === null ? null : parseRuntimeScenario(response);
+    return parseRuntimeScenarioResolveResponse(response);
   }
 
   async function createSession(
@@ -493,15 +548,25 @@ export function createOnboarding(options: CreateOnboardingOptions): Onboarding {
   async function runStart(options: StartOptions, runGeneration: number): Promise<void> {
     requireBrowser();
     const userId = assertOption(options.userId, "userId");
-    const preview = options.preview ?? false;
+    const testToken = options.testToken === undefined
+      ? undefined
+      : assertOption(options.testToken, "testToken");
+    const usesTestToken = testToken !== undefined;
 
-    if (progress && (progress.userId !== userId || progress.preview !== preview)) {
+    if (
+      progress &&
+      (progress.userId !== userId || (!progress.isTest && progress.usesTestToken !== usesTestToken))
+    ) {
       throw new Error("Call destroy() before changing onboarding user or mode");
     }
 
     ensureView();
     const stored = progress ?? readProgress();
-    if (stored && stored.userId === userId && stored.preview === preview) {
+    if (
+      stored &&
+      stored.userId === userId &&
+      (stored.isTest || stored.usesTestToken === usesTestToken)
+    ) {
       progress = stored;
       renderForCurrentPage();
       return;
@@ -510,25 +575,50 @@ export function createOnboarding(options: CreateOnboardingOptions): Onboarding {
 
     const controller = new AbortController();
     startController = controller;
-    const scenario = await resolveScenario(userId, controller.signal);
-    if (runGeneration !== generation || !scenario) return;
-
-    const sessionId = preview ? null : await createSession(scenario.id, userId, controller.signal);
+    const response = await resolveScenarios(userId, testToken, controller.signal);
     if (runGeneration !== generation) return;
 
-    progress = {
-      version: 1,
+    const createProgress = (scenario: RuntimeScenario): Progress => ({
+      version: 2,
       projectKey,
       userId,
-      preview,
-      sessionId,
+      usesTestToken,
+      isTest: response.is_test,
+      sessionId: null,
       scenario,
       stepIndex: 0,
       accepted: false,
       shownStepIds: [],
+    });
+
+    if (response.scenarios.length === 0) {
+      clearTarget();
+      return;
+    }
+
+    if (response.scenarios.length === 1) {
+      progress = createProgress(response.scenarios[0]!);
+      writeProgress();
+      renderForCurrentPage();
+      return;
+    }
+
+    clearTarget();
+    const dismiss = () => {
+      clearTarget();
     };
-    writeProgress();
-    renderForCurrentPage();
+    pendingDismiss = dismiss;
+    ensureView().showScenarioSelector({
+      scenarios: response.scenarios.map(({ id, name, description }) => ({ id, name, description })),
+      onSelect: (scenarioId) => {
+        const scenario = response.scenarios.find(({ id }) => id === scenarioId);
+        if (!scenario) return;
+        progress = createProgress(scenario);
+        writeProgress();
+        void acceptInvitation();
+      },
+      onDecline: dismiss,
+    });
   }
 
   async function start(options: StartOptions): Promise<void> {
@@ -547,6 +637,8 @@ export function createOnboarding(options: CreateOnboardingOptions): Onboarding {
     generation += 1;
     startController?.abort();
     startController = null;
+    sessionController?.abort();
+    sessionController = null;
     if (routeTimer !== null) window.clearTimeout(routeTimer);
     routeTimer = null;
     if (positionFrame !== null) window.cancelAnimationFrame(positionFrame);
@@ -563,6 +655,7 @@ export function createOnboarding(options: CreateOnboardingOptions): Onboarding {
     view = null;
     progress = null;
     completingStepId = null;
+    accepting = false;
   }
 
   return { start, completeCurrentStep, destroy };

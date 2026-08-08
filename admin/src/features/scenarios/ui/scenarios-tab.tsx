@@ -8,13 +8,8 @@ import type { ColumnsType } from 'antd/es/table';
 import { adminApi } from '@/shared/api/admin-api';
 import type { ScenarioInput, ScenarioSummary } from '@/shared/api/types';
 import { formatDate } from '@/shared/lib/format';
+import { buildScenarioPreviewUrl } from '@/features/scenarios/model/preview';
 import { ScenarioStatus } from './scenario-status';
-
-function openPreview(scenario: ScenarioSummary) {
-  const url = new URL(scenario.page_pattern, process.env.NEXT_PUBLIC_PREVIEW_URL || 'http://localhost:3000');
-  url.searchParams.set('preview', '1');
-  window.open(url, '_blank', 'noopener,noreferrer');
-}
 
 export function ScenariosTab({ projectId }: { projectId: string }) {
   const [creating, setCreating] = useState(false);
@@ -43,6 +38,29 @@ export function ScenariosTab({ projectId }: { projectId: string }) {
     },
     onError: (error) => message.error(error.message),
   });
+  const preview = useMutation({
+    mutationFn: async ({ scenario, popup }: { scenario: ScenarioSummary; popup: Window }) => {
+      try {
+        const { token } = await adminApi.createTestToken(scenario.id);
+        const url = buildScenarioPreviewUrl(scenario.page_pattern, token);
+        popup.location.replace(url);
+      } catch (error) {
+        popup.close();
+        throw error;
+      }
+    },
+    onError: (error) => message.error(error.message),
+  });
+
+  function openPreview(scenario: ScenarioSummary) {
+    const popup = window.open('about:blank', '_blank');
+    if (!popup) {
+      message.error('Разрешите всплывающие окна для проверки сценария');
+      return;
+    }
+    popup.opener = null;
+    preview.mutate({ scenario, popup });
+  }
 
   const columns: ColumnsType<ScenarioSummary> = [
     {
@@ -61,7 +79,16 @@ export function ScenariosTab({ projectId }: { projectId: string }) {
       width: 260,
       render: (_, scenario) => (
         <Space wrap>
-          {scenario.published_at ? <Button type="link" onClick={() => openPreview(scenario)}>Проверить</Button> : null}
+          {scenario.steps_count > 0 ? (
+            <Button
+              type="link"
+              disabled={preview.isPending}
+              loading={preview.isPending && preview.variables?.scenario.id === scenario.id}
+              onClick={() => openPreview(scenario)}
+            >
+              Проверить
+            </Button>
+          ) : null}
           <Button type="link" onClick={() => router.push(`/projects/${projectId}/scenarios/${scenario.id}`)}>Открыть</Button>
           <Popconfirm
             title="Удалить сценарий?"

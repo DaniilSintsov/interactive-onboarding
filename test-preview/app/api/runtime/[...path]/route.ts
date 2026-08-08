@@ -25,8 +25,8 @@ export async function POST(
     "Content-Type": request.headers.get("content-type") ?? "application/json",
     "X-Project-Key": projectKey,
   });
-  const origin = request.headers.get("origin");
-  if (origin) headers.set("Origin", origin);
+  const testToken = request.headers.get("x-scenario-test-token");
+  if (testToken) headers.set("X-Scenario-Test-Token", testToken);
 
   try {
     const upstream = await fetch(`${backendUrl}${backendPath}`, {

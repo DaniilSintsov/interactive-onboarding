@@ -81,6 +81,11 @@ export type Scenario = {
 
 export type ScenarioWithSteps = Scenario & { steps: Step[] };
 
+export type ScenarioTestToken = {
+  token: string;
+  expires_at: string;
+};
+
 export type ProjectAnalytics = {
   project_id: string;
   total_scenarios: number;

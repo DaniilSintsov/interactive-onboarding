@@ -73,6 +73,7 @@ const scenario = {
 
 const sessions = [];
 const events = [];
+const testTokens = new Map();
 
 function runtimeScenario() {
   return {
@@ -105,8 +106,19 @@ createServer(async (request, response) => {
   }
   if (request.method === "POST" && pathname === "/api/v1/sdk/scenarios/resolve") {
     const body = await readJson(request);
-    if (body.user_id === "demo-expert" || body.page !== "/") send(response, 204);
-    else send(response, 200, runtimeScenario());
+    const projectKey = request.headers["x-project-key"];
+    const testToken = request.headers["x-scenario-test-token"];
+    const tokenExpiresAt = testToken ? testTokens.get(testToken) : undefined;
+    if (projectKey !== project.project_key) {
+      send(response, 403, { code: "forbidden", message: "invalid test or project token" });
+    } else if (testToken && (!tokenExpiresAt || tokenExpiresAt <= Date.now())) {
+      send(response, 403, { code: "forbidden", message: "invalid test or project token" });
+    } else {
+      const scenarios = body.page === scenario.page_pattern && (testToken || body.user_id !== "demo-expert")
+        ? [runtimeScenario()]
+        : [];
+      send(response, 200, { is_test: Boolean(testToken), scenarios });
+    }
     return;
   }
   if (request.method === "POST" && pathname === "/api/v1/sdk/sessions") {
@@ -160,8 +172,14 @@ createServer(async (request, response) => {
     send(response, 200, { ...scenario, steps });
     return;
   }
-  if (request.method === "GET" && pathname === `/api/v1/scenarios/${scenarioId}/preview`) {
-    send(response, 200, runtimeScenario());
+  if (request.method === "POST" && pathname === `/api/v1/scenarios/${scenarioId}/test-tokens`) {
+    const token = randomUUID().replaceAll("-", "");
+    const expiresAt = Date.now() + 30 * 60 * 1000;
+    testTokens.set(token, expiresAt);
+    send(response, 201, {
+      token,
+      expires_at: new Date(expiresAt).toISOString(),
+    });
     return;
   }
   if (request.method === "GET" && pathname === `/api/v1/projects/${projectId}/analytics/total`) {
