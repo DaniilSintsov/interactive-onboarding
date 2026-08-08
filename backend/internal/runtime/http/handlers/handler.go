@@ -39,7 +39,7 @@ func (h *RuntimeHandler) GetScenario(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := requestValidator.Struct(scenarioRequest); err != nil {
-		writeError(w, http.StatusUnprocessableEntity, "validation_error", err.Error())
+		writeError(w, http.StatusUnprocessableEntity, "validation_error", "ivalid request")
 		return
 	}
 	scenarioResponse, err := h.service.FindScenarios(r.Context(), scenarioRequest.Page, scenarioRequest.UserID)
@@ -59,11 +59,13 @@ func (h *RuntimeHandler) GetScenario(w http.ResponseWriter, r *http.Request) {
 
 func writeServiceError(w http.ResponseWriter, err error) {
 	switch {
-	case errors.Is(err, runtimeService.ErrScenarioNotFound),
-		errors.Is(err, runtimeService.ErrProjectMismatch),
-		errors.Is(err, runtimeService.ErrTokenIsExpired),
+	case errors.Is(err, runtimeService.ErrTokenIsExpired),
 		errors.Is(err, runtimeService.ErrProjectTokenIsNotValid):
-		writeError(w, http.StatusForbidden, "forbidden", err.Error())
+		writeError(w, http.StatusForbidden, "forbidden", "invalid test or project token")
+	case errors.Is(err, runtimeService.ErrScenarioNotFound):
+		writeError(w, http.StatusNotFound, "not found", "Scenario was not found")
+	case errors.Is(err, runtimeService.ErrProjectMismatch):
+		writeError(w, http.StatusUnprocessableEntity, "unprocessable contend", "Project and scenario mismatch")
 	default:
 		writeError(w, http.StatusInternalServerError, "internal_error", "internal server error")
 	}
