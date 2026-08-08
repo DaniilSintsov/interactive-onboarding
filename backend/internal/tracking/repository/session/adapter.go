@@ -79,8 +79,8 @@ func (r *SessionRepository) GetSessionByScenarioAndUser(
 		return nil, err
 	}
 	found, err := r.queries.GetSessionByScenarioAndUser(ctx, session.GetSessionByScenarioAndUserParams{
-		ID:     parsedScenarioID,
-		UserID: userID,
+		ScenarioID: parsedScenarioID,
+		UserID:     userID,
 	})
 	if err != nil {
 		return nil, err

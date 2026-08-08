@@ -80,16 +80,16 @@ func (q *Queries) CreateSession(ctx context.Context, arg CreateSessionParams) (O
 const getSessionByScenarioAndUser = `-- name: GetSessionByScenarioAndUser :one
 SELECT id, scenario_id, user_id, status, started_at, finished_at
 FROM onboarding.sessions
-WHERE "id" = $1 AND "user_id" = $2
+WHERE "scenario_id" = $1 AND "user_id" = $2
 `
 
 type GetSessionByScenarioAndUserParams struct {
-	ID     uuid.UUID `json:"id"`
-	UserID string    `json:"user_id"`
+	ScenarioID uuid.UUID `json:"scenario_id"`
+	UserID     string    `json:"user_id"`
 }
 
 func (q *Queries) GetSessionByScenarioAndUser(ctx context.Context, arg GetSessionByScenarioAndUserParams) (OnboardingSession, error) {
-	row := q.db.QueryRow(ctx, getSessionByScenarioAndUser, arg.ID, arg.UserID)
+	row := q.db.QueryRow(ctx, getSessionByScenarioAndUser, arg.ScenarioID, arg.UserID)
 	var i OnboardingSession
 	err := row.Scan(
 		&i.ID,

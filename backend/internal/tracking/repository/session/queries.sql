@@ -8,7 +8,7 @@ RETURNING *;
 -- name: GetSessionByScenarioAndUser :one
 SELECT *
 FROM onboarding.sessions
-WHERE "id" = $1 AND "user_id" = $2;
+WHERE "scenario_id" = $1 AND "user_id" = $2;
 
 -- name: SelectSessionById :one
 SELECT *

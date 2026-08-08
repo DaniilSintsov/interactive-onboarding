@@ -14,8 +14,7 @@ import (
 const getStepById = `-- name: GetStepById :one
 SELECT id, scenario_id, element_id, step_num, title, description, frontend_data, created_at, updated_at, deleted_at
 FROM onboarding.steps
-WHERE id = $1
-  AND deleted_at IS NULL
+WHERE id = $1 AND deleted_at IS NULL
 `
 
 func (q *Queries) GetStepById(ctx context.Context, id uuid.UUID) (OnboardingStep, error) {
