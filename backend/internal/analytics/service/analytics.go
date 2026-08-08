@@ -2,9 +2,16 @@ package service
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"time"
 
-	"interactive-onboarding/internal/analytics/repository"
+	"github.com/DaniilSintsov/interactive-onboarding/backend/internal/analytics/repository"
+)
+
+var (
+	ErrScenarioNotFound = errors.New("scenario not found")
+	ErrProjectNotFound  = errors.New("project not found")
 )
 
 type AnalyticsService struct {
@@ -54,16 +61,23 @@ type DetailedScenarioAnalytics struct {
 }
 
 func (s *AnalyticsService) GetScenarioAnalytics(ctx context.Context, scenarioID string, from, to *time.Time) (ScenarioAnalytics, error) {
+	exists, err := s.repo.ScenarioExists(ctx, scenarioID)
+	if err != nil {
+		return ScenarioAnalytics{}, fmt.Errorf("check scenario exists: %w", err)
+	}
+	if !exists {
+		return ScenarioAnalytics{}, ErrScenarioNotFound
+	}
+
 	stats, err := s.repo.GetScenarioStats(ctx, scenarioID, from, to)
 	if err != nil {
-		return ScenarioAnalytics{}, err
+		return ScenarioAnalytics{}, fmt.Errorf("get scenario stats: %w", err)
 	}
 
 	completionRate := 0.0
 	if stats.Started > 0 {
 		completionRate = float64(stats.Completed) / float64(stats.Started)
 	}
-
 	skipRate := 0.0
 	if stats.Started > 0 {
 		skipRate = float64(stats.Skipped) / float64(stats.Started)
@@ -91,8 +105,8 @@ func (s *AnalyticsService) GetDetailedScenarioAnalytics(ctx context.Context, sce
 		return DetailedScenarioAnalytics{}, err
 	}
 
-	steps := make([]StepAnalytics, 0, len(stepStats))
-	for _, stat := range stepStats {
+	steps := make([]StepAnalytics, len(stepStats))
+	for i, stat := range stepStats {
 		completionRate := 0.0
 		if stat.Shown > 0 {
 			completionRate = float64(stat.Completed) / float64(stat.Shown)
@@ -101,8 +115,17 @@ func (s *AnalyticsService) GetDetailedScenarioAnalytics(ctx context.Context, sce
 		if stat.Shown > 0 {
 			skipRate = float64(stat.Skipped) / float64(stat.Shown)
 		}
-
-		steps = append(steps, StepAnalytics{
+		dropOffRate := 0.0
+		if stat.Shown > 0 {
+			var nextShown int64
+			if i == len(stepStats)-1 {
+				nextShown = summary.Completed
+			} else {
+				nextShown = stepStats[i+1].Shown
+			}
+			dropOffRate = 1 - float64(nextShown)/float64(stat.Shown)
+		}
+		steps[i] = StepAnalytics{
 			StepID:         stat.StepID,
 			Position:       stat.Position,
 			Title:          stat.Title,
@@ -111,10 +134,9 @@ func (s *AnalyticsService) GetDetailedScenarioAnalytics(ctx context.Context, sce
 			Skipped:        stat.Skipped,
 			CompletionRate: completionRate,
 			SkipRate:       skipRate,
-			DropOffRate:    0,
-		})
+			DropOffRate:    dropOffRate,
+		}
 	}
-
 	return DetailedScenarioAnalytics{
 		ScenarioAnalytics: summary,
 		Steps:             steps,
@@ -122,21 +144,26 @@ func (s *AnalyticsService) GetDetailedScenarioAnalytics(ctx context.Context, sce
 }
 
 func (s *AnalyticsService) GetProjectAnalytics(ctx context.Context, projectID string, from, to *time.Time) (ProjectAnalytics, error) {
-	total, enabled, started, completed, skipped, err := s.repo.GetProjectStats(ctx, projectID, from, to)
+	exists, err := s.repo.ProjectExists(ctx, projectID)
 	if err != nil {
-		return ProjectAnalytics{}, err
+		return ProjectAnalytics{}, fmt.Errorf("check project exists: %w", err)
+	}
+	if !exists {
+		return ProjectAnalytics{}, ErrProjectNotFound
 	}
 
+	total, enabled, started, completed, skipped, err := s.repo.GetProjectStats(ctx, projectID, from, to)
+	if err != nil {
+		return ProjectAnalytics{}, fmt.Errorf("get project stats: %w", err)
+	}
 	completionRate := 0.0
 	if started > 0 {
 		completionRate = float64(completed) / float64(started)
 	}
-
 	skipRate := 0.0
 	if started > 0 {
 		skipRate = float64(skipped) / float64(started)
 	}
-
 	return ProjectAnalytics{
 		ProjectID:         projectID,
 		TotalScenarios:    total,

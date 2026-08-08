@@ -1,15 +1,11 @@
 package analyticshttp
 
 import (
-	"github.com/go-chi/chi/v5"
+	"net/http"
 )
 
-func RegisterRoutes(r chi.Router, h *AnalyticsHandler) {
-	r.Route("/api/v1/scenarios", func(r chi.Router) {
-		r.Get("/{scenarioId}/analytics/total", h.GetScenarioAnalyticsTotal)
-		r.Get("/{scenarioId}/analytics/detailed", h.GetDetailedScenarioAnalytics)
-	})
-	r.Route("/api/v1/projects", func(r chi.Router) {
-		r.Get("/{projectId}/analytics/total", h.GetProjectAnalyticsTotal)
-	})
+func RegisterRoutes(mux *http.ServeMux, h *AnalyticsHandler) {
+	mux.HandleFunc("GET /api/v1/scenarios/{scenarioId}/analytics/total", h.GetScenarioAnalyticsTotal)
+	mux.HandleFunc("GET /api/v1/scenarios/{scenarioId}/analytics/detailed", h.GetDetailedScenarioAnalytics)
+	mux.HandleFunc("GET /api/v1/projects/{projectId}/analytics/total", h.GetProjectAnalyticsTotal)
 }

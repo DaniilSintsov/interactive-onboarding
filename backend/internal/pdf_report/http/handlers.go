@@ -2,14 +2,14 @@ package pdfhttp
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"net/http"
 	"time"
 
+	"github.com/DaniilSintsov/interactive-onboarding/backend/internal/analytics/service"
+	"github.com/DaniilSintsov/interactive-onboarding/backend/internal/platform/httpserver"
 	"github.com/jung-kurt/gofpdf/v2"
-
-	"interactive-onboarding/internal/analytics/service"
-	"interactive-onboarding/internal/platform/httpserver"
 )
 
 type PDFHandler struct {
@@ -21,39 +21,53 @@ func NewPDFHandler(svc *service.AnalyticsService) *PDFHandler {
 }
 
 func (h *PDFHandler) GenerateScenarioPDFReport(w http.ResponseWriter, r *http.Request) {
-	scenarioID, err := httpserver.ParseUUIDPath(r, "id")
+	scenarioID, err := httpserver.ParseUUIDPath(r, "scenarioId", "invalid_scenario_id")
 	if err != nil {
 		httpserver.WriteJSONError(w, http.StatusBadRequest, "invalid_scenario_id", err.Error())
 		return
 	}
 
-	from, to := parseTimeRange(r)
+	from, to, err := parseTimeRange(r)
+	if err != nil {
+		httpserver.WriteJSONError(w, http.StatusUnprocessableEntity, "invalid_time_range", err.Error())
+		return
+	}
 
 	analytics, err := h.analyticsService.GetDetailedScenarioAnalytics(r.Context(), scenarioID.String(), from, to)
 	if err != nil {
-		httpserver.WriteJSONError(w, http.StatusInternalServerError, "internal_error", err.Error())
+		if errors.Is(err, service.ErrScenarioNotFound) {
+			httpserver.WriteJSONError(w, http.StatusNotFound, "scenario_not_found", "Scenario not found")
+			return
+		}
+		httpserver.WriteJSONError(w, http.StatusInternalServerError, "internal_error", "Internal server error")
 		return
 	}
 
 	pdfData, err := generatePDF(analytics)
 	if err != nil {
-		httpserver.WriteJSONError(w, http.StatusInternalServerError, "pdf_generation_error", err.Error())
+		httpserver.WriteJSONError(w, http.StatusInternalServerError, "pdf_generation_error", "Failed to generate PDF")
 		return
 	}
 
 	w.Header().Set("Content-Type", "application/pdf")
 	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=report_%s.pdf", scenarioID.String()))
-	w.Write(pdfData)
+	if _, err := w.Write(pdfData); err != nil {
+		// После отправки заголовков JSON-ошибку уже не вернуть, только логируем
+		// TODO: добавить логирование ошибки
+	}
 }
 
 func generatePDF(data service.DetailedScenarioAnalytics) ([]byte, error) {
 	pdf := gofpdf.New("P", "mm", "A4", "")
 	pdf.AddPage()
-	pdf.SetFont("Arial", "B", 16)
-	pdf.Cell(40, 10, "Scenario Analytics Report")
-	pdf.Ln(10)
 
-	pdf.SetFont("Arial", "", 12)
+	pdf.AddUTF8Font("DejaVu", "", "fonts/DejaVuSans.ttf")
+	pdf.SetFont("DejaVu", "", 14)
+
+	pdf.Cell(40, 10, "Scenario Analytics Report")
+	pdf.Ln(12)
+
+	pdf.SetFont("DejaVu", "", 12)
 	pdf.Cell(40, 10, fmt.Sprintf("Scenario ID: %s", data.ScenarioID))
 	pdf.Ln(6)
 	pdf.Cell(40, 10, fmt.Sprintf("Started: %d", data.Started))
@@ -67,8 +81,7 @@ func generatePDF(data service.DetailedScenarioAnalytics) ([]byte, error) {
 	pdf.Cell(40, 10, fmt.Sprintf("Average Time: %.2f sec", data.AverageCompletionTimeSeconds))
 	pdf.Ln(12)
 
-	// Заголовок таблицы
-	pdf.SetFont("Arial", "B", 12)
+	pdf.SetFont("DejaVu", "B", 12)
 	pdf.Cell(30, 10, "Step")
 	pdf.Cell(30, 10, "Position")
 	pdf.Cell(40, 10, "Shown")
@@ -76,10 +89,13 @@ func generatePDF(data service.DetailedScenarioAnalytics) ([]byte, error) {
 	pdf.Cell(40, 10, "Completion Rate")
 	pdf.Ln(8)
 
-	// Данные таблицы
-	pdf.SetFont("Arial", "", 11)
+	pdf.SetFont("DejaVu", "", 11)
 	for _, step := range data.Steps {
-		pdf.Cell(30, 8, step.Title)
+		title := step.Title
+		if len(title) > 20 {
+			title = title[:20] + "..."
+		}
+		pdf.Cell(30, 8, title)
 		pdf.Cell(30, 8, fmt.Sprintf("%d", step.Position))
 		pdf.Cell(40, 8, fmt.Sprintf("%d", step.Shown))
 		pdf.Cell(40, 8, fmt.Sprintf("%d", step.Completed))
@@ -94,19 +110,31 @@ func generatePDF(data service.DetailedScenarioAnalytics) ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-func parseTimeRange(r *http.Request) (*time.Time, *time.Time) {
-	var from, to *time.Time
+func parseTimeRange(r *http.Request) (*time.Time, *time.Time, error) {
+	fromStr := r.URL.Query().Get("from")
+	toStr := r.URL.Query().Get("to")
 
-	if fromStr := r.URL.Query().Get("from"); fromStr != "" {
-		if t, err := time.Parse(time.RFC3339, fromStr); err == nil {
-			from = &t
-		}
-	}
-	if toStr := r.URL.Query().Get("to"); toStr != "" {
-		if t, err := time.Parse(time.RFC3339, toStr); err == nil {
-			to = &t
-		}
+	if fromStr == "" && toStr == "" {
+		return nil, nil, nil
 	}
 
-	return from, to
+	if fromStr == "" || toStr == "" {
+		return nil, nil, errors.New("both 'from' and 'to' must be provided together")
+	}
+
+	from, err := time.Parse(time.RFC3339, fromStr)
+	if err != nil {
+		return nil, nil, fmt.Errorf("invalid 'from' format: %w", err)
+	}
+
+	to, err := time.Parse(time.RFC3339, toStr)
+	if err != nil {
+		return nil, nil, fmt.Errorf("invalid 'to' format: %w", err)
+	}
+
+	if !from.Before(to) {
+		return nil, nil, errors.New("'from' must be before 'to'")
+	}
+
+	return &from, &to, nil
 }
