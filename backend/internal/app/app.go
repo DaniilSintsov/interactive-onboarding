@@ -9,7 +9,11 @@ import (
 	"syscall"
 	"time"
 
+	analyticshttp "github.com/DaniilSintsov/interactive-onboarding/backend/internal/analytics/http"
+	analyticsrepository "github.com/DaniilSintsov/interactive-onboarding/backend/internal/analytics/repository"
+	analyticsservice "github.com/DaniilSintsov/interactive-onboarding/backend/internal/analytics/service"
 	"github.com/DaniilSintsov/interactive-onboarding/backend/internal/config"
+	pdfhttp "github.com/DaniilSintsov/interactive-onboarding/backend/internal/pdf_report/http"
 	"github.com/DaniilSintsov/interactive-onboarding/backend/internal/platform/httpserver"
 	platformmiddleware "github.com/DaniilSintsov/interactive-onboarding/backend/internal/platform/middleware"
 	"github.com/DaniilSintsov/interactive-onboarding/backend/internal/platform/postgres"
@@ -21,6 +25,12 @@ import (
 	projectDB "github.com/DaniilSintsov/interactive-onboarding/backend/internal/project/repository/postgres/project"
 	"github.com/DaniilSintsov/interactive-onboarding/backend/internal/project/usecase/element"
 	"github.com/DaniilSintsov/interactive-onboarding/backend/internal/project/usecase/project"
+	runtimehttp "github.com/DaniilSintsov/interactive-onboarding/backend/internal/runtime/http/handlers"
+	runtimescenario "github.com/DaniilSintsov/interactive-onboarding/backend/internal/runtime/repository/scenario"
+	runtimesession "github.com/DaniilSintsov/interactive-onboarding/backend/internal/runtime/repository/session"
+	runtimestep "github.com/DaniilSintsov/interactive-onboarding/backend/internal/runtime/repository/step"
+	runtimetoken "github.com/DaniilSintsov/interactive-onboarding/backend/internal/runtime/repository/token"
+	runtimeservice "github.com/DaniilSintsov/interactive-onboarding/backend/internal/runtime/service"
 	scenariohttp "github.com/DaniilSintsov/interactive-onboarding/backend/internal/scenario/http"
 	scenarioDB "github.com/DaniilSintsov/interactive-onboarding/backend/internal/scenario/repository/postgres/scenario"
 	stepDB "github.com/DaniilSintsov/interactive-onboarding/backend/internal/scenario/repository/postgres/step"
@@ -28,6 +38,12 @@ import (
 	"github.com/DaniilSintsov/interactive-onboarding/backend/internal/scenario/usecase/scenario"
 	"github.com/DaniilSintsov/interactive-onboarding/backend/internal/scenario/usecase/step"
 	"github.com/DaniilSintsov/interactive-onboarding/backend/internal/scenario/usecase/test_token"
+	trackinghttp "github.com/DaniilSintsov/interactive-onboarding/backend/internal/tracking/http/handlers"
+	trackingevent "github.com/DaniilSintsov/interactive-onboarding/backend/internal/tracking/repository/event"
+	trackingscenario "github.com/DaniilSintsov/interactive-onboarding/backend/internal/tracking/repository/scenario"
+	trackingsession "github.com/DaniilSintsov/interactive-onboarding/backend/internal/tracking/repository/session"
+	trackingstep "github.com/DaniilSintsov/interactive-onboarding/backend/internal/tracking/repository/step"
+	trackingservice "github.com/DaniilSintsov/interactive-onboarding/backend/internal/tracking/service"
 	db "github.com/DaniilSintsov/interactive-onboarding/backend/migrations"
 	"go.uber.org/zap"
 )
@@ -64,6 +80,24 @@ func Run(logger *zap.Logger, cfg *config.Config) error {
 	stepRepository := stepDB.NewRepository(dbPool, txManager)
 	testTokenRepository := testTokenDB.NewRepository(dbPool)
 	scenarioRepository := scenarioDB.NewRepository(dbPool)
+
+	runtimeScenarioRepository := runtimescenario.NewScenarioRepository(dbPool)
+	runtimeSessionRepository := runtimesession.NewSessionRepository(dbPool)
+	runtimeStepRepository := runtimestep.NewStepRepository(dbPool)
+	runtimeTokenRepository := runtimetoken.NewTestTokensRepository(dbPool)
+
+	trackingConnection, err := dbPool.Acquire(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to acquire tracking database connection: %w", err)
+	}
+	defer trackingConnection.Release()
+
+	trackingSessionRepository := trackingsession.NewSessionRepository(dbPool)
+	trackingEventRepository := trackingevent.NewEventRepository(trackingConnection.Conn())
+	trackingScenarioRepository := trackingscenario.NewScenarioRepository(dbPool)
+	trackingStepRepository := trackingstep.NewStepRepository(dbPool)
+
+	analyticsRepository := analyticsrepository.NewAnalyticsRepository(dbPool)
 
 	keyGenerator := keygen.NewGenerator()
 	testToken := testtoken.NewService()
@@ -109,6 +143,23 @@ func Run(logger *zap.Logger, cfg *config.Config) error {
 		logger,
 	)
 
+	runtimeService := runtimeservice.NewRuntimeService(
+		runtimeScenarioRepository,
+		runtimeSessionRepository,
+		runtimeStepRepository,
+		runtimeTokenRepository,
+		testToken,
+	)
+
+	trackingService := trackingservice.NewTrackingService(
+		trackingSessionRepository,
+		trackingEventRepository,
+		trackingScenarioRepository,
+		trackingStepRepository,
+	)
+
+	analyticsService := analyticsservice.NewAnalyticsService(analyticsRepository)
+
 	projectHandler := projecthttp.NewHandler(
 		elementService,
 		projectService,
@@ -122,6 +173,11 @@ func Run(logger *zap.Logger, cfg *config.Config) error {
 		logger,
 	)
 
+	runtimeHandler := runtimehttp.NewHandler(runtimeService)
+	trackingHandler := trackinghttp.NewTrackingHandler(trackingService)
+	analyticsHandler := analyticshttp.NewAnalyticsHandler(analyticsService)
+	pdfHandler := pdfhttp.NewPDFHandler(analyticsService)
+
 	server := httpserver.NewServer(
 		cfg.HTTPConfig,
 		platformmiddleware.CORS(cfg.HTTPConfig.AllowedOrigins),
@@ -132,6 +188,18 @@ func Run(logger *zap.Logger, cfg *config.Config) error {
 		[]httpserver.Middleware{},
 		projectHandler,
 		scenarioHandler,
+		analyticsHandler,
+		pdfHandler,
+	)
+
+	server.RegisterRouteGroup(
+		"/api/v1/sdk/",
+		[]httpserver.Middleware{
+			platformmiddleware.ExtractProjectKey,
+			platformmiddleware.ExtractTestToken,
+		},
+		runtimeHandler,
+		trackingHandler,
 	)
 
 	if err = runHTTPServer(ctx, logger, cfg, server); err != nil {
