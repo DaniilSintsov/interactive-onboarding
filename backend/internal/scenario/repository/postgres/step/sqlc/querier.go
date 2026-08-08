@@ -15,14 +15,11 @@ type Querier interface {
 	CreateStep(ctx context.Context, arg CreateStepParams) (CreateStepRow, error)
 	DeleteStep(ctx context.Context, arg DeleteStepParams) (DeleteStepRow, error)
 	GetNextStepNumber(ctx context.Context, scenarioID uuid.UUID) (int32, error)
-	// WHAT???
 	GetStepByID(ctx context.Context, arg GetStepByIDParams) (GetStepByIDRow, error)
+	IsElementUsedBySteps(ctx context.Context, elementID uuid.UUID) (bool, error)
 	ListStepsByScenarioID(ctx context.Context, scenarioID uuid.UUID) ([]ListStepsByScenarioIDRow, error)
 	LockActiveStep(ctx context.Context, arg LockActiveStepParams) (LockActiveStepRow, error)
 	LockActiveStepsByScenarioID(ctx context.Context, scenarioID uuid.UUID) ([]LockActiveStepsByScenarioIDRow, error)
-	// Reordering must run in one transaction after LockActiveStepsByScenarioID.
-	// The first query moves every active position above the current range so that
-	// assigning positions 1..N cannot violate the partial unique index.
 	MoveStepsOutOfOrderRange(ctx context.Context, scenarioID uuid.UUID) error
 	UpdateStep(ctx context.Context, arg UpdateStepParams) (UpdateStepRow, error)
 }

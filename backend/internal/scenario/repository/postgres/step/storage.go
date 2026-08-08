@@ -168,6 +168,18 @@ func (repo *stepRepository) ListByScenarioID(
 	return steps, nil
 }
 
+func (repo *stepRepository) IsElementUsedBySteps(
+	ctx context.Context,
+	elementID uuid.UUID,
+) (bool, error) {
+	used, err := repo.getQueries(ctx).IsElementUsedBySteps(ctx, elementID)
+	if err != nil {
+		return false, fmt.Errorf("step repository - check element usage: %w", err)
+	}
+
+	return used, nil
+}
+
 func (repo *stepRepository) GetByID(
 	ctx context.Context,
 	scenarioID uuid.UUID,

@@ -78,11 +78,14 @@ func (q *Queries) CreateScenario(ctx context.Context, arg CreateScenarioParams) 
 }
 
 const deleteScenario = `-- name: DeleteScenario :one
-UPDATE onboarding.scenarios
+UPDATE onboarding.scenarios AS s
 SET deleted_at = NOW()
-WHERE id = $1
-  AND deleted_at IS NULL
-RETURNING id
+FROM onboarding.projects AS p
+WHERE s.id = $1
+  AND p.id = s.project_id
+  AND s.deleted_at IS NULL
+  AND p.deleted_at IS NULL
+RETURNING s.id
 `
 
 func (q *Queries) DeleteScenario(ctx context.Context, scenarioID uuid.UUID) (uuid.UUID, error) {
@@ -185,18 +188,20 @@ func (q *Queries) EnableScenario(ctx context.Context, scenarioID uuid.UUID) (Ena
 }
 
 const getScenarioByID = `-- name: GetScenarioByID :one
-SELECT id,
-       project_id,
-       name,
-       description,
-       page_pattern,
-       status,
-       published_at,
-       created_at,
-       updated_at
-FROM onboarding.scenarios
-WHERE id = $1
-  AND deleted_at IS NULL
+SELECT s.id,
+       s.project_id,
+       s.name,
+       s.description,
+       s.page_pattern,
+       s.status,
+       s.published_at,
+       s.created_at,
+       s.updated_at
+FROM onboarding.scenarios AS s
+JOIN onboarding.projects AS p ON p.id = s.project_id
+WHERE s.id = $1
+  AND s.deleted_at IS NULL
+  AND p.deleted_at IS NULL
 `
 
 type GetScenarioByIDRow struct {
@@ -316,19 +321,22 @@ func (q *Queries) ListScenariosByProjectID(ctx context.Context, arg ListScenario
 }
 
 const lockActiveScenario = `-- name: LockActiveScenario :one
-SELECT id,
-       project_id,
-       name,
-       description,
-       page_pattern,
-       status,
-       published_at,
-       created_at,
-       updated_at
-FROM onboarding.scenarios
-WHERE id = $1
-  AND deleted_at IS NULL
-FOR UPDATE
+SELECT s.id,
+       s.project_id,
+       s.name,
+       s.description,
+       s.page_pattern,
+       s.status,
+       s.published_at,
+       s.created_at,
+       s.updated_at
+FROM onboarding.scenarios AS s
+JOIN onboarding.projects AS p ON p.id = s.project_id
+WHERE s.id = $1
+  AND s.deleted_at IS NULL
+  AND p.deleted_at IS NULL
+FOR UPDATE OF s
+FOR SHARE OF p
 `
 
 type LockActiveScenarioRow struct {

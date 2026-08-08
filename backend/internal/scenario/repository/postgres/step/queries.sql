@@ -67,6 +67,16 @@ WHERE scenario_id = sqlc.arg(scenario_id)
   AND deleted_at IS NULL
 ORDER BY step_num, id;
 
+-- name: IsElementUsedBySteps :one
+SELECT EXISTS (
+    SELECT 1
+    FROM onboarding.steps AS st
+    JOIN onboarding.scenarios AS s ON s.id = st.scenario_id
+    WHERE st.element_id = sqlc.arg(element_id)
+      AND st.deleted_at IS NULL
+      AND s.deleted_at IS NULL
+) AS is_used;
+
 -- name: GetNextStepNumber :one
 SELECT (COALESCE(MAX(step_num), 0) + 1)::integer
 FROM onboarding.steps

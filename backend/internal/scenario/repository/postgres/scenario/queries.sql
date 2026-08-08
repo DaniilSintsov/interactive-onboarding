@@ -50,18 +50,20 @@ LIMIT sqlc.arg(page_limit)::integer
 OFFSET sqlc.arg(page_offset)::integer;
 
 -- name: GetScenarioByID :one
-SELECT id,
-       project_id,
-       name,
-       description,
-       page_pattern,
-       status,
-       published_at,
-       created_at,
-       updated_at
-FROM onboarding.scenarios
-WHERE id = sqlc.arg(scenario_id)
-  AND deleted_at IS NULL;
+SELECT s.id,
+       s.project_id,
+       s.name,
+       s.description,
+       s.page_pattern,
+       s.status,
+       s.published_at,
+       s.created_at,
+       s.updated_at
+FROM onboarding.scenarios AS s
+JOIN onboarding.projects AS p ON p.id = s.project_id
+WHERE s.id = sqlc.arg(scenario_id)
+  AND s.deleted_at IS NULL
+  AND p.deleted_at IS NULL;
 
 -- name: UpdateScenario :one
 UPDATE onboarding.scenarios
@@ -81,26 +83,32 @@ RETURNING id,
           updated_at;
 
 -- name: DeleteScenario :one
-UPDATE onboarding.scenarios
+UPDATE onboarding.scenarios AS s
 SET deleted_at = NOW()
-WHERE id = sqlc.arg(scenario_id)
-  AND deleted_at IS NULL
-RETURNING id;
+FROM onboarding.projects AS p
+WHERE s.id = sqlc.arg(scenario_id)
+  AND p.id = s.project_id
+  AND s.deleted_at IS NULL
+  AND p.deleted_at IS NULL
+RETURNING s.id;
 
 -- name: LockActiveScenario :one
-SELECT id,
-       project_id,
-       name,
-       description,
-       page_pattern,
-       status,
-       published_at,
-       created_at,
-       updated_at
-FROM onboarding.scenarios
-WHERE id = sqlc.arg(scenario_id)
-  AND deleted_at IS NULL
-FOR UPDATE;
+SELECT s.id,
+       s.project_id,
+       s.name,
+       s.description,
+       s.page_pattern,
+       s.status,
+       s.published_at,
+       s.created_at,
+       s.updated_at
+FROM onboarding.scenarios AS s
+JOIN onboarding.projects AS p ON p.id = s.project_id
+WHERE s.id = sqlc.arg(scenario_id)
+  AND s.deleted_at IS NULL
+  AND p.deleted_at IS NULL
+FOR UPDATE OF s
+FOR SHARE OF p;
 
 -- name: PublishScenario :one
 UPDATE onboarding.scenarios

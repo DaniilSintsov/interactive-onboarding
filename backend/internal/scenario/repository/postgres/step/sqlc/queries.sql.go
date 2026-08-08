@@ -154,7 +154,6 @@ func (q *Queries) GetNextStepNumber(ctx context.Context, scenarioID uuid.UUID) (
 }
 
 const getStepByID = `-- name: GetStepByID :one
-
 SELECT id,
        scenario_id,
        element_id,
@@ -187,7 +186,6 @@ type GetStepByIDRow struct {
 	UpdatedAt    pgtype.Timestamptz `json:"updated_at"`
 }
 
-// WHAT???
 func (q *Queries) GetStepByID(ctx context.Context, arg GetStepByIDParams) (GetStepByIDRow, error) {
 	row := q.db.QueryRow(ctx, getStepByID, arg.ScenarioID, arg.StepID)
 	var i GetStepByIDRow
@@ -203,6 +201,24 @@ func (q *Queries) GetStepByID(ctx context.Context, arg GetStepByIDParams) (GetSt
 		&i.UpdatedAt,
 	)
 	return i, err
+}
+
+const isElementUsedBySteps = `-- name: IsElementUsedBySteps :one
+SELECT EXISTS (
+    SELECT 1
+    FROM onboarding.steps AS st
+    JOIN onboarding.scenarios AS s ON s.id = st.scenario_id
+    WHERE st.element_id = $1
+      AND st.deleted_at IS NULL
+      AND s.deleted_at IS NULL
+) AS is_used
+`
+
+func (q *Queries) IsElementUsedBySteps(ctx context.Context, elementID uuid.UUID) (bool, error) {
+	row := q.db.QueryRow(ctx, isElementUsedBySteps, elementID)
+	var is_used bool
+	err := row.Scan(&is_used)
+	return is_used, err
 }
 
 const listStepsByScenarioID = `-- name: ListStepsByScenarioID :many
@@ -349,7 +365,6 @@ func (q *Queries) LockActiveStepsByScenarioID(ctx context.Context, scenarioID uu
 }
 
 const moveStepsOutOfOrderRange = `-- name: MoveStepsOutOfOrderRange :exec
-
 WITH current_range AS (
     SELECT COALESCE(MAX(step_num), 0)::integer AS offset
     FROM onboarding.steps
@@ -364,9 +379,6 @@ WHERE s.scenario_id = $1
   AND current_range.offset > 0
 `
 
-// Reordering must run in one transaction after LockActiveStepsByScenarioID.
-// The first query moves every active position above the current range so that
-// assigning positions 1..N cannot violate the partial unique index.
 func (q *Queries) MoveStepsOutOfOrderRange(ctx context.Context, scenarioID uuid.UUID) error {
 	_, err := q.db.Exec(ctx, moveStepsOutOfOrderRange, scenarioID)
 	return err
