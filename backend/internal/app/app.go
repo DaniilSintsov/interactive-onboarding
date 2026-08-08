@@ -11,14 +11,23 @@ import (
 
 	"github.com/DaniilSintsov/interactive-onboarding/backend/internal/config"
 	"github.com/DaniilSintsov/interactive-onboarding/backend/internal/platform/httpserver"
+	platformmiddleware "github.com/DaniilSintsov/interactive-onboarding/backend/internal/platform/middleware"
 	"github.com/DaniilSintsov/interactive-onboarding/backend/internal/platform/postgres"
 	"github.com/DaniilSintsov/interactive-onboarding/backend/internal/platform/postgres/transactor"
+	"github.com/DaniilSintsov/interactive-onboarding/backend/internal/platform/testtoken"
 	projecthttp "github.com/DaniilSintsov/interactive-onboarding/backend/internal/project/http"
 	"github.com/DaniilSintsov/interactive-onboarding/backend/internal/project/keygen"
 	elementDB "github.com/DaniilSintsov/interactive-onboarding/backend/internal/project/repository/postgres/element"
 	projectDB "github.com/DaniilSintsov/interactive-onboarding/backend/internal/project/repository/postgres/project"
 	"github.com/DaniilSintsov/interactive-onboarding/backend/internal/project/usecase/element"
 	"github.com/DaniilSintsov/interactive-onboarding/backend/internal/project/usecase/project"
+	scenariohttp "github.com/DaniilSintsov/interactive-onboarding/backend/internal/scenario/http"
+	scenarioDB "github.com/DaniilSintsov/interactive-onboarding/backend/internal/scenario/repository/postgres/scenario"
+	stepDB "github.com/DaniilSintsov/interactive-onboarding/backend/internal/scenario/repository/postgres/step"
+	testTokenDB "github.com/DaniilSintsov/interactive-onboarding/backend/internal/scenario/repository/postgres/test_token"
+	"github.com/DaniilSintsov/interactive-onboarding/backend/internal/scenario/usecase/scenario"
+	"github.com/DaniilSintsov/interactive-onboarding/backend/internal/scenario/usecase/step"
+	"github.com/DaniilSintsov/interactive-onboarding/backend/internal/scenario/usecase/test_token"
 	db "github.com/DaniilSintsov/interactive-onboarding/backend/migrations"
 	"go.uber.org/zap"
 )
@@ -52,13 +61,17 @@ func Run(logger *zap.Logger, cfg *config.Config) error {
 
 	elementRepository := elementDB.NewRepository(dbPool)
 	projectRepository := projectDB.NewRepository(dbPool)
+	stepRepository := stepDB.NewRepository(dbPool, txManager)
+	testTokenRepository := testTokenDB.NewRepository(dbPool)
+	scenarioRepository := scenarioDB.NewRepository(dbPool)
 
 	keyGenerator := keygen.NewGenerator()
+	testToken := testtoken.NewService()
 
 	elementService := element.NewElementService(
 		elementRepository,
 		projectRepository,
-		nil,
+		stepRepository,
 		txManager,
 		logger,
 	)
@@ -72,21 +85,53 @@ func Run(logger *zap.Logger, cfg *config.Config) error {
 		logger,
 	)
 
+	testTokenService := test_token.NewTestTokenService(
+		testTokenRepository,
+		scenarioRepository,
+		testToken,
+		time.Minute*30,
+		logger,
+	)
+
+	stepService := step.NewStepService(
+		stepRepository,
+		scenarioRepository,
+		elementRepository,
+		txManager,
+		logger,
+	)
+
+	scenarioService := scenario.NewScenarioService(
+		scenarioRepository,
+		stepRepository,
+		projectRepository,
+		txManager,
+		logger,
+	)
+
 	projectHandler := projecthttp.NewHandler(
 		elementService,
 		projectService,
 		logger,
 	)
 
+	scenarioHandler := scenariohttp.NewHandler(
+		scenarioService,
+		stepService,
+		testTokenService,
+		logger,
+	)
+
 	server := httpserver.NewServer(
 		cfg.HTTPConfig,
-		httpserver.CORS(cfg.HTTPConfig.AllowedOrigins),
+		platformmiddleware.CORS(cfg.HTTPConfig.AllowedOrigins),
 	)
 
 	server.RegisterRouteGroup(
 		"/api/v1/",
 		[]httpserver.Middleware{},
 		projectHandler,
+		scenarioHandler,
 	)
 
 	if err = runHTTPServer(ctx, logger, cfg, server); err != nil {

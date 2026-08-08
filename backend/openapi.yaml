@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: Interactive Onboarding API
-  version: 0.9.0
+  version: 0.10.0
   description: 'API MVP-платформы интерактивного онбординга: управление проектами, элементами интерфейса, сценариями
     и шагами, Runtime API для SDK, Tracking, аналитика и PDF-отчёты.'
 servers:
@@ -434,7 +434,7 @@ paths:
         - Scenarios
       operationId: publishScenario
       summary: Опубликовать сценарий
-      description: Проверяет конфигурацию и переводит сценарий из in_development в enabled.
+      description: Переводит сценарий из in_development в enabled.
       security:
         - AdminBearer: []
       responses:
@@ -477,7 +477,7 @@ paths:
           $ref: '#/components/responses/Conflict'
         '422':
           $ref: '#/components/responses/ValidationError'
-      description: Повторно проверяет конфигурацию и переводит сценарий из disabled в enabled.
+      description: Переводит сценарий из disabled в enabled.
   /api/v1/scenarios/{scenarioId}/disable:
     parameters:
       - $ref: '#/components/parameters/ScenarioId'
@@ -503,24 +503,27 @@ paths:
           $ref: '#/components/responses/Conflict'
       description: Переводит сценарий из enabled в disabled. После выключения сценарий не выдаётся Runtime и может быть
         отредактирован.
-  /api/v1/scenarios/{scenarioId}/preview:
+  /api/v1/scenarios/{scenarioId}/test-tokens:
     parameters:
       - $ref: '#/components/parameters/ScenarioId'
-    get:
+    post:
       tags:
         - Scenarios
-      operationId: previewScenario
-      summary: Получить конфигурацию сценария для предпросмотра
-      description: Возвращает SDK-совместимую конфигурацию без создания tracking-сессии.
+      operationId: createScenarioTestToken
+      summary: Создать токен для тестирования сценария
+      description: |
+        Создаёт короткоживущий токен для тестирования сценария через SDK.
+        Токен может быть создан для неудалённого сценария в любом статусе. Срок действия задаётся backend.
+        Полученное значение токена возвращается только при создании.
       security:
         - AdminBearer: []
       responses:
-        '200':
-          description: Конфигурация для предпросмотра
+        '201':
+          description: Токен для тестирования создан
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/RuntimeScenario'
+                $ref: '#/components/schemas/ScenarioTestTokenResponse'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '404':
@@ -788,6 +791,8 @@ paths:
       summary: Найти подходящий сценарий для SDK
       security:
         - ProjectKey: []
+      parameters:
+        - $ref: '#/components/parameters/ScenarioTestToken'
       requestBody:
         required: true
         content:
@@ -796,21 +801,27 @@ paths:
               $ref: '#/components/schemas/ResolveScenarioRequest'
       responses:
         '200':
-          description: Подходящий сценарий найден
+          description: Результат поиска сценариев
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/RuntimeScenario'
-        '204':
-          description: Подходящий сценарий отсутствует
+                $ref: '#/components/schemas/RuntimeScenarioResolveResponse'
         '400':
           $ref: '#/components/responses/BadRequest'
         '403':
           $ref: '#/components/responses/Forbidden'
         '422':
           $ref: '#/components/responses/ValidationError'
-      description: Определяет подходящий enabled-сценарий по project_key, странице и пользователю. Сессию прохождения
-        не создаёт.
+      description: |
+        Без тестового токена возвращает все неудалённые enabled-сценарии проекта, подходящие для страницы и ещё
+        не завершённые или не пропущенные данным пользователем. Сценарии упорядочены по published_at и id.
+        Если подходящих сценариев нет, возвращает 200 с пустым массивом.
+
+        При передаче X-Scenario-Test-Token проверяет срок действия токена, принадлежность сценария проекту и
+        соответствие page его page_pattern. Для валидного токена возвращает только связанный с ним сценарий,
+        независимо от статуса и истории пользователя, с is_test=true. Невалидный, истёкший или принадлежащий
+        другому проекту токен возвращает 403. Несоответствие страницы или невалидная конфигурация возвращает 422.
+        При is_test=true SDK не создаёт tracking-сессию и не отправляет события.
 
   # ============================================================================
   # Tracking
@@ -846,7 +857,8 @@ paths:
           $ref: '#/components/responses/Conflict'
         '422':
           $ref: '#/components/responses/ValidationError'
-      description: Создаёт активную сессию, когда SDK фактически начинает показывать сценарий.
+      description: Создаёт активную сессию, когда SDK фактически начинает показывать сценарий. SDK не вызывает эту
+        ручку для результата Runtime с is_test=true.
   /api/v1/sdk/events:
     post:
       tags:
@@ -884,7 +896,8 @@ paths:
           $ref: '#/components/responses/Conflict'
         '422':
           $ref: '#/components/responses/ValidationError'
-      description: Сохраняет идемпотентное событие, отправленное SDK.
+      description: Сохраняет идемпотентное событие, отправленное SDK. SDK не отправляет события для результата
+        Runtime с is_test=true.
 components:
   securitySchemes:
     AdminBearer:
@@ -911,6 +924,15 @@ components:
       schema:
         type: string
         format: uuid
+    ScenarioTestToken:
+      name: X-Scenario-Test-Token
+      in: header
+      required: false
+      schema:
+        type: string
+        minLength: 32
+        maxLength: 256
+      description: Короткоживущий токен для запуска одного сценария в тестовом режиме.
     StepId:
       name: stepId
       in: path
@@ -1340,6 +1362,39 @@ components:
           minLength: 1
           maxLength: 255
           description: Внешний идентификатор пользователя классифайда.
+    ScenarioTestTokenResponse:
+      type: object
+      required:
+        - token
+        - expires_at
+      additionalProperties: false
+      properties:
+        token:
+          type: string
+          minLength: 32
+          maxLength: 256
+          description: Открытое значение токена. Backend не возвращает его повторно после создания.
+        expires_at:
+          type: string
+          format: date-time
+          description: Момент окончания срока действия токена.
+    RuntimeScenarioResolveResponse:
+      type: object
+      required:
+        - is_test
+        - scenarios
+      additionalProperties: false
+      properties:
+        is_test:
+          type: boolean
+          description: Равно true только при успешном разрешении сценария по тестовому токену.
+        scenarios:
+          type: array
+          description: |
+            В обычном режиме содержит все подходящие сценарии и может быть пустым. В тестовом режиме содержит
+            ровно один сценарий.
+          items:
+            $ref: '#/components/schemas/RuntimeScenario'
     RuntimeScenario:
       type: object
       required:

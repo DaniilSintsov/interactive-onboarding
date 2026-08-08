@@ -31,8 +31,16 @@ CREATE TABLE onboarding.scenarios
 );
 
 CREATE INDEX scenarios_active_project_status_idx
-    ON onboarding.scenarios (project_id, status)
-    WHERE deleted_at IS NULL;
+    ON onboarding.scenarios (project_id, status) WHERE deleted_at IS NULL;
+
+CREATE INDEX scenarios_runtime_lookup_idx
+    ON onboarding.scenarios (
+                             project_id,
+                             page_pattern,
+                             published_at,
+                             id
+        ) WHERE status = 'enabled'
+      AND deleted_at IS NULL;
 
 CREATE TRIGGER scenarios_set_updated_at
     BEFORE UPDATE

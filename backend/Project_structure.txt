@@ -79,7 +79,7 @@ POST   /api/v1/sdk/events   - сохранить событие прохожде
  - Description
  - PagePattern
  - Status  ('enabled', 'in_development', 'disabled')
- - PublishedAt
+ - Published_at
  - Created_at
  - Updated_at
  - Deleted_at
