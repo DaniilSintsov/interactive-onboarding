@@ -4,9 +4,10 @@ import { createContext, use, useCallback, useEffect, useRef } from "react";
 import { usePathname } from "next/navigation";
 
 import { useDraftStore } from "@/features/listing/model/draft-store";
+import { consumeTestToken } from "@/features/onboarding/model/runtime-path";
 
 type OnboardingController = {
-  start: (input: { userId: string; preview?: boolean }) => Promise<void>;
+  start: (input: { userId: string; testToken?: string }) => Promise<void>;
   completeCurrentStep: () => Promise<void>;
   destroy: () => void;
 };
@@ -15,8 +16,10 @@ const OnboardingContext = createContext<{
   completeCurrentStep: () => Promise<void>;
 } | null>(null);
 
-function isPreview() {
-  return new URLSearchParams(window.location.search).get("preview") === "1";
+function takeTestToken() {
+  const { token, path } = consumeTestToken(new URL(window.location.href));
+  if (path) window.history.replaceState(window.history.state, "", path);
+  return token;
 }
 
 export function OnboardingProvider({
@@ -30,6 +33,12 @@ export function OnboardingProvider({
   const demoUser = useDraftStore((state) => state.demoUser);
   const controllerRef = useRef<OnboardingController | null>(null);
   const readyRef = useRef<Promise<OnboardingController | null> | null>(null);
+  const testTokenRef = useRef<string | undefined>(undefined);
+
+  useEffect(() => {
+    const testToken = takeTestToken();
+    if (testToken) testTokenRef.current = testToken;
+  }, [pathname]);
 
   useEffect(() => {
     if (!enabled) return;
@@ -47,9 +56,11 @@ export function OnboardingProvider({
         });
         instance = created;
         controllerRef.current = created;
+        const testToken = testTokenRef.current;
         await created
-          .start({ userId: demoUser, preview: isPreview() })
+          .start({ userId: demoUser, testToken })
           .catch(() => undefined);
+        if (testTokenRef.current === testToken) testTokenRef.current = undefined;
         return instance;
       },
     );
@@ -65,9 +76,15 @@ export function OnboardingProvider({
     if (!enabled) return;
 
     void readyRef.current
-      ?.then((controller) =>
-        controller?.start({ userId: demoUser, preview: isPreview() }),
-      )
+      ?.then(async (controller) => {
+        if (!controller) return;
+        const testToken = testTokenRef.current;
+        try {
+          await controller.start({ userId: demoUser, testToken });
+        } finally {
+          if (testTokenRef.current === testToken) testTokenRef.current = undefined;
+        }
+      })
       .catch(() => undefined);
   }, [demoUser, enabled, pathname]);
 

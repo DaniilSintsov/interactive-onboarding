@@ -1,4 +1,9 @@
-import type { FrontendStepData, RuntimeScenario, RuntimeStep } from "./types.js";
+import type {
+  FrontendStepData,
+  RuntimeScenario,
+  RuntimeScenarioResolveResponse,
+  RuntimeStep,
+} from "./types.js";
 
 type UnknownRecord = Record<string, unknown>;
 
@@ -72,6 +77,23 @@ export function parseRuntimeScenario(value: unknown): RuntimeScenario {
     description: string(scenario.description, "scenario.description"),
     page_pattern: string(scenario.page_pattern, "scenario.page_pattern"),
     steps: scenario.steps.map(runtimeStep).sort((a, b) => a.step_num - b.step_num),
+  };
+}
+
+export function parseRuntimeScenarioResolveResponse(
+  value: unknown,
+): RuntimeScenarioResolveResponse {
+  const response = record(value, "response");
+  if (typeof response.is_test !== "boolean") {
+    throw new TypeError("response.is_test must be a boolean");
+  }
+  if (!Array.isArray(response.scenarios)) {
+    throw new TypeError("response.scenarios must be an array");
+  }
+
+  return {
+    is_test: response.is_test,
+    scenarios: response.scenarios.map(parseRuntimeScenario),
   };
 }
 

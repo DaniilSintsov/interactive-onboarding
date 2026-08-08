@@ -8,6 +8,7 @@ import type {
   Scenario,
   ScenarioInput,
   ScenarioList,
+  ScenarioTestToken,
   ScenarioWithSteps,
   Step,
   StepInput,
@@ -74,6 +75,8 @@ export const adminApi = {
     request<void>(`/scenarios/${scenarioId}`, { method: 'DELETE' }),
   transitionScenario: (scenarioId: string, action: 'publish' | 'enable' | 'disable') =>
     request<Scenario>(`/scenarios/${scenarioId}/${action}`, { method: 'POST' }),
+  createTestToken: (scenarioId: string) =>
+    request<ScenarioTestToken>(`/scenarios/${scenarioId}/test-tokens`, { method: 'POST' }),
 
   createStep: (scenarioId: string, input: StepInput) =>
     request<Step>(`/scenarios/${scenarioId}/steps`, { method: 'POST', body: json(input) }),

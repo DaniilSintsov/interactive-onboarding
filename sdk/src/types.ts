@@ -29,6 +29,11 @@ export type RuntimeScenario = {
   steps: RuntimeStep[];
 };
 
+export type RuntimeScenarioResolveResponse = {
+  is_test: boolean;
+  scenarios: RuntimeScenario[];
+};
+
 export type EventType =
   | "step_shown"
   | "step_completed"
@@ -43,7 +48,7 @@ export type CreateOnboardingOptions = {
 
 export type StartOptions = {
   userId: string;
-  preview?: boolean;
+  testToken?: string;
 };
 
 export type Onboarding = {

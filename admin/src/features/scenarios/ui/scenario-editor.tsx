@@ -22,6 +22,7 @@ import {
   toStepInput,
   type StepFormValues,
 } from '@/features/scenarios/model/step-form';
+import { buildScenarioPreviewUrl } from '@/features/scenarios/model/preview';
 import { ScenarioStatus } from './scenario-status';
 
 function StepModal({
@@ -179,6 +180,19 @@ export function ScenarioEditor({ projectId, scenarioId }: { projectId: string; s
     onSuccess: () => void refresh(),
     onError: (error) => message.error(error.message),
   });
+  const preview = useMutation({
+    mutationFn: async ({ pagePattern, popup }: { pagePattern: string; popup: Window }) => {
+      try {
+        const { token } = await adminApi.createTestToken(scenarioId);
+        const url = buildScenarioPreviewUrl(pagePattern, token);
+        popup.location.replace(url);
+      } catch (error) {
+        popup.close();
+        throw error;
+      }
+    },
+    onError: (error) => message.error(error.message),
+  });
 
   if (scenario.isPending || elements.isPending) return <Skeleton active paragraph={{ rows: 14 }} />;
   if (scenario.isError) return <Alert type="error" showIcon message={scenario.error.message} />;
@@ -196,13 +210,14 @@ export function ScenarioEditor({ projectId, scenarioId }: { projectId: string; s
     reorder.mutate(ids);
   }
 
-  function preview() {
-    const url = new URL(
-      scenarioData.page_pattern,
-      process.env.NEXT_PUBLIC_PREVIEW_URL || 'http://localhost:3000',
-    );
-    url.searchParams.set('preview', '1');
-    window.open(url, '_blank', 'noopener,noreferrer');
+  function openPreview() {
+    const popup = window.open('about:blank', '_blank');
+    if (!popup) {
+      message.error('Разрешите всплывающие окна для проверки сценария');
+      return;
+    }
+    popup.opener = null;
+    preview.mutate({ pagePattern: scenarioData.page_pattern, popup });
   }
 
   return (
@@ -215,7 +230,11 @@ export function ScenarioEditor({ projectId, scenarioId }: { projectId: string; s
         </div>
         <Space wrap>
           <Button href={`/projects/${projectId}`}>← К проекту</Button>
-          {scenarioData.published_at ? <Button onClick={preview}>Проверить ↗</Button> : null}
+          {orderedSteps.length > 0 ? (
+            <Button loading={preview.isPending} disabled={preview.isPending} onClick={openPreview}>
+              Проверить ↗
+            </Button>
+          ) : null}
           {scenarioData.status === 'in_development' ? (
             <Button
               type="primary"
