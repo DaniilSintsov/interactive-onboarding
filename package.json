@@ -1,0 +1,19 @@
+{
+  "name": "interactive-onboarding",
+  "private": true,
+  "workspaces": [
+    "sdk",
+    "test-preview",
+    "admin"
+  ],
+  "scripts": {
+    "admin:credentials": "npm run credentials -w @interactive-onboarding/admin",
+    "build": "npm run build -w @interactive-onboarding/sdk && npm run build -w @interactive-onboarding/test-preview && npm run build -w @interactive-onboarding/admin",
+    "dev:admin": "npm run dev -w @interactive-onboarding/admin",
+    "dev:preview": "node test-support/dev-preview.mjs",
+    "lint": "npm run lint --workspaces --if-present",
+    "mock-api": "node test-support/mock-api.mjs",
+    "test": "npm run test --workspaces --if-present",
+    "typecheck": "npm run build -w @interactive-onboarding/sdk && npm run typecheck --workspaces --if-present"
+  }
+}

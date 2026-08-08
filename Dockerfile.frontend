@@ -1,0 +1,40 @@
+FROM node:22-alpine AS build
+
+WORKDIR /app
+
+COPY package.json package-lock.json ./
+COPY sdk/package.json sdk/
+COPY test-preview/package.json test-preview/
+COPY admin/package.json admin/
+RUN npm ci
+
+COPY sdk/ sdk/
+COPY test-preview/ test-preview/
+COPY admin/ admin/
+
+ARG NEXT_PUBLIC_PROJECT_KEY=pk_demo_avito
+ARG NEXT_PUBLIC_PREVIEW_URL=http://localhost:3000
+ENV NEXT_PUBLIC_PROJECT_KEY=$NEXT_PUBLIC_PROJECT_KEY \
+    NEXT_PUBLIC_PREVIEW_URL=$NEXT_PUBLIC_PREVIEW_URL
+
+RUN npm run build
+RUN npm prune --omit=dev
+
+FROM node:22-alpine AS runtime
+
+WORKDIR /app
+
+ENV NODE_ENV=production \
+    NEXT_TELEMETRY_DISABLED=1 \
+    PORT=3000
+
+COPY --from=build --chown=node:node /app /app
+
+USER node
+EXPOSE 3000
+
+FROM runtime AS test-preview
+CMD ["npm", "run", "start", "-w", "@interactive-onboarding/test-preview", "--", "-H", "0.0.0.0"]
+
+FROM runtime AS admin
+CMD ["npm", "run", "start", "-w", "@interactive-onboarding/admin", "--", "-H", "0.0.0.0"]

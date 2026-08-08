@@ -75,13 +75,13 @@ func (e *EventRepository) RecordEvent(
 		}
 	}
 	createEvent := event.CreateEventParams{
-		EventID:    eventId,
+		ID:         eventId,
 		SessionID:  sessionId,
 		StepID:     stepId,
 		Type:       string(onboarding.Type),
 		Data:       onboarding.Data,
-		OccurredAt: pgtype.Timestamp{Time: onboarding.OccurredAt, Valid: true},
-		ReceivedAt: pgtype.Timestamp{Time: onboarding.ReceivedAt, Valid: true},
+		OccurredAt: pgtype.Timestamptz{Time: onboarding.OccurredAt, Valid: true},
+		ReceivedAt: pgtype.Timestamptz{Time: onboarding.ReceivedAt, Valid: true},
 	}
 
 	createdEvent, err := e.queries.CreateEvent(ctx, createEvent)
@@ -117,7 +117,7 @@ func adaptEvent(source event.OnboardingEvent, duplicate bool) *trackingModel.Eve
 
 	return &trackingModel.EventAcceptedResponse{
 		Event: trackingModel.OnboardingEvent{
-			ID:         source.EventID.String(),
+			ID:         source.ID.String(),
 			SessionID:  source.SessionID.String(),
 			StepID:     stepID,
 			Type:       trackingModel.EventType(source.Type),

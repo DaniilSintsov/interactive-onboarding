@@ -1,130 +1,191 @@
 package handlers
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 
-	runtimeModel "github.com/DaniilSintsov/interactive-onboarding/internal/runtime/model"
+	"github.com/DaniilSintsov/interactive-onboarding/backend/internal/platform/httpserver"
+	runtimeModel "github.com/DaniilSintsov/interactive-onboarding/backend/internal/runtime/model"
+	runtimeService "github.com/DaniilSintsov/interactive-onboarding/backend/internal/runtime/service"
 )
 
 type runtimeServiceMock struct {
-	pageID string
-	userID string
-	result *runtimeModel.RuntimeScenario
-	err    error
+	ctx         context.Context
+	pagePattern string
+	userID      string
+	response    *runtimeModel.RuntimeScenarioResolveResponse
+	err         error
 }
 
-func (m *runtimeServiceMock) FindScenario(pageID string, userID string) (*runtimeModel.RuntimeScenario, error) {
-	m.pageID = pageID
+func (m *runtimeServiceMock) FindScenarios(
+	ctx context.Context,
+	pagePattern, userID string,
+) (*runtimeModel.RuntimeScenarioResolveResponse, error) {
+	m.ctx = ctx
+	m.pagePattern = pagePattern
 	m.userID = userID
-	return m.result, m.err
+	return m.response, m.err
 }
 
-func TestGetScenarioRejectsInvalidRequests(t *testing.T) {
+func TestGetScenarioRejectsMalformedRequests(t *testing.T) {
 	tests := []struct {
-		name       string
-		body       string
-		statusCode int
+		name string
+		body string
 	}{
-		{name: "missing page", body: `{"user_id":"user-1"}`, statusCode: http.StatusUnprocessableEntity},
-		{name: "empty page", body: `{"page":"","user_id":"user-1"}`, statusCode: http.StatusUnprocessableEntity},
-		{name: "page too long", body: `{"page":"` + strings.Repeat("p", 2049) + `","user_id":"user-1"}`, statusCode: http.StatusUnprocessableEntity},
-		{name: "missing user id", body: `{"page":"/home"}`, statusCode: http.StatusUnprocessableEntity},
-		{name: "empty user id", body: `{"page":"/home","user_id":""}`, statusCode: http.StatusUnprocessableEntity},
-		{name: "user id too long", body: `{"page":"/home","user_id":"` + strings.Repeat("u", 256) + `"}`, statusCode: http.StatusUnprocessableEntity},
-		{name: "unknown field", body: `{"page":"/home","user_id":"user-1","unexpected":true}`, statusCode: http.StatusBadRequest},
-		{name: "multiple JSON values", body: `{"page":"/home","user_id":"user-1"} {}`, statusCode: http.StatusBadRequest},
+		{name: "malformed JSON", body: `{`},
+		{name: "unknown field", body: `{"page":"/home","user_id":"user-1","unknown":true}`},
+		{name: "multiple JSON values", body: `{"page":"/home","user_id":"user-1"} {}`},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			req := httptest.NewRequest(http.MethodPost, "/api/v1/sdk/scenarios/resolve", strings.NewReader(tt.body))
 			response := httptest.NewRecorder()
+			req := httptest.NewRequest(http.MethodPost, "/api/v1/sdk/scenarios/resolve", strings.NewReader(tt.body))
 
 			NewHandler(nil).GetScenario(response, req)
 
-			if response.Code != tt.statusCode {
-				t.Fatalf("expected status %d, got %d", tt.statusCode, response.Code)
-			}
+			assertErrorResponse(t, response, http.StatusBadRequest, "invalid_request")
 		})
 	}
 }
 
-func TestGetScenarioAcceptsValidRequest(t *testing.T) {
-	service := &runtimeServiceMock{
-		result: &runtimeModel.RuntimeScenario{ID: "scenario-1", Name: "Welcome"},
+func TestGetScenarioRejectsInvalidRequestFields(t *testing.T) {
+	tests := []struct {
+		name string
+		body string
+	}{
+		{name: "missing page", body: `{"user_id":"user-1"}`},
+		{name: "empty page", body: `{"page":"","user_id":"user-1"}`},
+		{name: "page too long", body: `{"page":"` + strings.Repeat("p", 2049) + `","user_id":"user-1"}`},
+		{name: "missing user ID", body: `{"page":"/home"}`},
+		{name: "empty user ID", body: `{"page":"/home","user_id":""}`},
+		{name: "user ID too long", body: `{"page":"/home","user_id":"` + strings.Repeat("u", 256) + `"}`},
 	}
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/sdk/scenarios/resolve", strings.NewReader(`{"page":"/home","user_id":"user-1"}`))
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			response := httptest.NewRecorder()
+			req := httptest.NewRequest(http.MethodPost, "/api/v1/sdk/scenarios/resolve", strings.NewReader(tt.body))
+
+			NewHandler(nil).GetScenario(response, req)
+
+			assertErrorResponse(t, response, http.StatusUnprocessableEntity, "validation_error")
+		})
+	}
+}
+
+func TestGetScenarioReturnsServiceResponse(t *testing.T) {
+	service := &runtimeServiceMock{response: &runtimeModel.RuntimeScenarioResolveResponse{
+		IsTest: true,
+		Scenarios: []runtimeModel.RuntimeScenario{{
+			ID: "scenario-1",
+			Steps: []runtimeModel.RuntimeStep{{
+				ID:           "step-1",
+				FrontendData: json.RawMessage(`{"placement":"bottom"}`),
+			}},
+		}},
+	}}
 	response := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/sdk/scenarios/resolve", strings.NewReader(`{"page":"/home","user_id":"user-1"}`))
 
 	NewHandler(service).GetScenario(response, req)
 
 	if response.Code != http.StatusOK {
-		t.Fatalf("expected status %d, got %d", http.StatusOK, response.Code)
+		t.Fatalf("status = %d, want %d", response.Code, http.StatusOK)
 	}
-	if service.pageID != "/home" || service.userID != "user-1" {
-		t.Fatalf("unexpected service arguments: page=%q user_id=%q", service.pageID, service.userID)
+	if contentType := response.Header().Get("Content-Type"); contentType != "application/json" {
+		t.Errorf("Content-Type = %q, want application/json", contentType)
+	}
+	if service.pagePattern != "/home" || service.userID != "user-1" {
+		t.Errorf("service arguments = (%q, %q), want (/home, user-1)", service.pagePattern, service.userID)
 	}
 
-	var scenario runtimeModel.RuntimeScenario
-	if err := json.NewDecoder(response.Body).Decode(&scenario); err != nil {
+	var payload runtimeModel.RuntimeScenarioResolveResponse
+	if err := json.NewDecoder(response.Body).Decode(&payload); err != nil {
 		t.Fatalf("decode response: %v", err)
 	}
-	if scenario.ID != "scenario-1" || scenario.Name != "Welcome" {
-		t.Fatalf("unexpected scenario response: %+v", scenario)
+	if !payload.IsTest || len(payload.Scenarios) != 1 || payload.Scenarios[0].ID != "scenario-1" {
+		t.Fatalf("unexpected response: %+v", payload)
+	}
+	if got := string(payload.Scenarios[0].Steps[0].FrontendData); got != `{"placement":"bottom"}` {
+		t.Errorf("frontend_data = %s, want JSON object", got)
 	}
 }
 
-func TestGetScenarioReturnsNoContentWhenNoScenarioMatches(t *testing.T) {
-	service := &runtimeServiceMock{}
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/sdk/scenarios/resolve", strings.NewReader(`{"page":"/home","user_id":"user-1"}`))
+func TestGetScenarioReturnsEmptyScenarioListForNilResponse(t *testing.T) {
 	response := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/sdk/scenarios/resolve", strings.NewReader(`{"page":"/home","user_id":"user-1"}`))
 
-	NewHandler(service).GetScenario(response, req)
+	NewHandler(&runtimeServiceMock{}).GetScenario(response, req)
 
-	if response.Code != http.StatusNoContent {
-		t.Fatalf("expected status %d, got %d", http.StatusNoContent, response.Code)
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d", response.Code, http.StatusOK)
 	}
+
+	var payload runtimeModel.RuntimeScenarioResolveResponse
+	if err := json.NewDecoder(response.Body).Decode(&payload); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if payload.IsTest || len(payload.Scenarios) != 0 || payload.Scenarios == nil {
+		t.Fatalf("unexpected empty response: %+v", payload)
+	}
+}
+
+func TestGetScenarioMapsTokenErrorsToForbidden(t *testing.T) {
+	tests := []error{
+		runtimeService.ErrTokenIsExpired,
+		runtimeService.ErrProjectTokenIsNotValid,
+	}
+
+	for _, serviceErr := range tests {
+		t.Run(serviceErr.Error(), func(t *testing.T) {
+			response := httptest.NewRecorder()
+			req := httptest.NewRequest(http.MethodPost, "/api/v1/sdk/scenarios/resolve", strings.NewReader(`{"page":"/home","user_id":"user-1"}`))
+
+			NewHandler(&runtimeServiceMock{err: serviceErr}).GetScenario(response, req)
+
+			assertErrorResponse(t, response, http.StatusForbidden, "forbidden")
+		})
+	}
+}
+
+func TestGetScenarioMapsUnexpectedServiceErrorsToInternalServerError(t *testing.T) {
+	response := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/sdk/scenarios/resolve", strings.NewReader(`{"page":"/home","user_id":"user-1"}`))
+
+	NewHandler(&runtimeServiceMock{err: errors.New("database unavailable")}).GetScenario(response, req)
+
+	assertErrorResponse(t, response, http.StatusInternalServerError, "internal_error")
 }
 
 func TestRegisterRoutesRegistersResolveEndpoint(t *testing.T) {
-	service := &runtimeServiceMock{result: &runtimeModel.RuntimeScenario{ID: "scenario-1"}}
 	router := http.NewServeMux()
-	NewHandler(service).RegisterRoutes(router)
+	NewHandler(&runtimeServiceMock{response: &runtimeModel.RuntimeScenarioResolveResponse{Scenarios: []runtimeModel.RuntimeScenario{}}}).RegisterRoutes(router)
 
 	response := httptest.NewRecorder()
 	router.ServeHTTP(response, httptest.NewRequest(http.MethodPost, "/api/v1/sdk/scenarios/resolve", strings.NewReader(`{"page":"/home","user_id":"user-1"}`)))
 
 	if response.Code != http.StatusOK {
-		t.Fatalf("expected status %d, got %d", http.StatusOK, response.Code)
+		t.Fatalf("status = %d, want %d", response.Code, http.StatusOK)
 	}
 }
 
-func TestGetScenarioPreservesFrontendDataAsJSONObject(t *testing.T) {
-	service := &runtimeServiceMock{result: &runtimeModel.RuntimeScenario{
-		ID: "scenario-1",
-		Steps: []runtimeModel.RuntimeStep{{
-			ID:           "step-1",
-			FrontendData: json.RawMessage(`{"placement":"bottom"}`),
-		}},
-	}}
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/sdk/scenarios/resolve", strings.NewReader(`{"page":"/home","user_id":"user-1"}`))
-	response := httptest.NewRecorder()
-
-	NewHandler(service).GetScenario(response, req)
-
-	var payload struct {
-		Steps []struct {
-			FrontendData json.RawMessage `json:"frontend_data"`
-		} `json:"steps"`
+func assertErrorResponse(t *testing.T, response *httptest.ResponseRecorder, wantStatus int, wantCode string) {
+	t.Helper()
+	if response.Code != wantStatus {
+		t.Fatalf("status = %d, want %d", response.Code, wantStatus)
 	}
+
+	var payload httpserver.ErrorResponse
 	if err := json.NewDecoder(response.Body).Decode(&payload); err != nil {
-		t.Fatalf("decode response: %v", err)
+		t.Fatalf("decode error response: %v", err)
 	}
-	if got := string(payload.Steps[0].FrontendData); got != `{"placement":"bottom"}` {
-		t.Fatalf("frontend_data = %s, want JSON object", got)
+	if payload.Code != wantCode {
+		t.Errorf("error code = %q, want %q", payload.Code, wantCode)
 	}
 }

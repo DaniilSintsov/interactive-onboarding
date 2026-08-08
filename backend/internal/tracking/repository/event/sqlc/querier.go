@@ -12,7 +12,7 @@ import (
 
 type Querier interface {
 	CreateEvent(ctx context.Context, arg CreateEventParams) (OnboardingEvent, error)
-	GetEventById(ctx context.Context, eventID uuid.UUID) (OnboardingEvent, error)
+	GetEventById(ctx context.Context, id uuid.UUID) (OnboardingEvent, error)
 }
 
 var _ Querier = (*Queries)(nil)
