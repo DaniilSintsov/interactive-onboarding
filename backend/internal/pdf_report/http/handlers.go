@@ -1,6 +1,7 @@
 package pdfhttp
 
 import (
+	"bytes"
 	"fmt"
 	"net/http"
 	"time"
@@ -86,7 +87,11 @@ func generatePDF(data service.DetailedScenarioAnalytics) ([]byte, error) {
 		pdf.Ln(7)
 	}
 
-	return pdf.Output(nil)
+	var buf bytes.Buffer
+	if err := pdf.Output(&buf); err != nil {
+		return nil, err
+	}
+	return buf.Bytes(), nil
 }
 
 func parseTimeRange(r *http.Request) (*time.Time, *time.Time) {

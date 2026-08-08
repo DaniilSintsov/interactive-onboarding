@@ -1,6 +1,8 @@
 package analyticshttp
 
 import (
+	"errors"
+	"fmt"
 	"net/http"
 	"time"
 
@@ -70,19 +72,32 @@ func (h *AnalyticsHandler) GetProjectAnalyticsTotal(w http.ResponseWriter, r *ht
 	httpserver.WriteJSON(w, http.StatusOK, analytics)
 }
 
-func parseTimeRange(r *http.Request) (*time.Time, *time.Time) {
-	var from, to *time.Time
+func parseTimeRange(r *http.Request) (*time.Time, *time.Time, error) {
+	fromStr := r.URL.Query().Get("from")
+	toStr := r.URL.Query().Get("to")
 
-	if fromStr := r.URL.Query().Get("from"); fromStr != "" {
-		if t, err := time.Parse(time.RFC3339, fromStr); err == nil {
-			from = &t
-		}
-	}
-	if toStr := r.URL.Query().Get("to"); toStr != "" {
-		if t, err := time.Parse(time.RFC3339, toStr); err == nil {
-			to = &t
-		}
+	// Если оба не переданы — возвращаем nil, nil (без фильтра)
+	if fromStr == "" && toStr == "" {
+		return nil, nil, nil
 	}
 
-	return from, to
+	if fromStr == "" || toStr == "" {
+		return nil, nil, errors.New("both 'from' and 'to' must be provided together")
+	}
+
+	from, err := time.Parse(time.RFC3339, fromStr)
+	if err != nil {
+		return nil, nil, fmt.Errorf("invalid 'from' format: %w", err)
+	}
+
+	to, err := time.Parse(time.RFC3339, toStr)
+	if err != nil {
+		return nil, nil, fmt.Errorf("invalid 'to' format: %w", err)
+	}
+
+	if !from.Before(to) {
+		return nil, nil, errors.New("'from' must be before 'to'")
+	}
+
+	return &from, &to, nil
 }

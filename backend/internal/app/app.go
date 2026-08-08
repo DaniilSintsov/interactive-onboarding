@@ -21,6 +21,11 @@ import (
 	"github.com/DaniilSintsov/interactive-onboarding/backend/internal/project/usecase/project"
 	db "github.com/DaniilSintsov/interactive-onboarding/backend/migrations"
 	"go.uber.org/zap"
+
+	analyticshttp "github.com/DaniilSintsov/interactive-onboarding/backend/internal/analytics/http"
+	analyticsrepository "github.com/DaniilSintsov/interactive-onboarding/backend/internal/analytics/repository"
+	analyticsservice "github.com/DaniilSintsov/interactive-onboarding/backend/internal/analytics/service"
+	pdfhttp "github.com/DaniilSintsov/interactive-onboarding/backend/internal/pdf_report/http"
 )
 
 func Run(logger *zap.Logger, cfg *config.Config) error {
@@ -78,12 +83,20 @@ func Run(logger *zap.Logger, cfg *config.Config) error {
 		logger,
 	)
 
+	analyticsRepo := analyticsrepository.NewAnalyticsRepository(dbPool)
+	analyticsSvc := analyticsservice.NewAnalyticsService(analyticsRepo)
+	analyticsHandler := analyticshttp.NewAnalyticsHandler(analyticsSvc)
+
+	pdfHandler := pdfhttp.NewPDFHandler(analyticsSvc)
+
 	server := httpserver.NewServer(cfg.HTTPConfig)
 
 	server.RegisterRouteGroup(
 		"/api/v1/",
 		[]httpserver.Middleware{},
 		projectHandler,
+		analyticsHandler,
+		pdfHandler,
 	)
 
 	if err = runHTTPServer(ctx, logger, cfg, server); err != nil {
