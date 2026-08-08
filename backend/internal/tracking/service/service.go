@@ -34,22 +34,22 @@ type (
 		GetEventById(context.Context, string) (*trackingModel.EventAcceptedResponse, error)
 		WithinTransaction(context.Context, func(SessionRepository, EventRepository) error) error
 	}
-	SceanrioRepository interface {
+	ScenarioRepository interface {
 		GetScenarioByIdAndProjectKey(ctx context.Context, scenarioId, projectKey string) (*trackingModel.Scenario, error)
 	}
 	StepRepository interface {
-		GetStepById(ctx context.Context, stedId string) (*trackingModel.Step, error)
+		GetStepById(ctx context.Context, stepId string) (*trackingModel.Step, error)
 	}
 )
 
 type TrackingService struct {
 	sessions  SessionRepository
 	events    EventRepository
-	scenarios SceanrioRepository
+	scenarios ScenarioRepository
 	steps     StepRepository
 }
 
-func NewTrackingService(s SessionRepository, e EventRepository, sc SceanrioRepository, st StepRepository) *TrackingService {
+func NewTrackingService(s SessionRepository, e EventRepository, sc ScenarioRepository, st StepRepository) *TrackingService {
 	return &TrackingService{
 		sessions:  s,
 		events:    e,

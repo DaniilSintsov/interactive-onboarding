@@ -15,7 +15,7 @@ type ScenarioRepository struct {
 	queries *scenarioSQLC.Queries
 }
 
-var _ trackingService.SceanrioRepository = (*ScenarioRepository)(nil)
+var _ trackingService.ScenarioRepository = (*ScenarioRepository)(nil)
 
 func NewScenarioRepository(db scenarioSQLC.DBTX) *ScenarioRepository {
 	return &ScenarioRepository{queries: scenarioSQLC.New(db)}
