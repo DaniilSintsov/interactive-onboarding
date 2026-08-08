@@ -26,5 +26,4 @@ CREATE TABLE onboarding.events
 CREATE INDEX events_session_id_idx ON onboarding.events (session_id);
 
 -- +goose Down
-
 DROP TABLE onboarding.events;
