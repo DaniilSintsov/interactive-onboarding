@@ -64,7 +64,8 @@ func writeServiceError(w http.ResponseWriter, err error) {
 		writeError(w, http.StatusForbidden, "forbidden", "invalid test or project token")
 	case errors.Is(err, runtimeService.ErrScenarioNotFound):
 		writeError(w, http.StatusNotFound, "not found", "Scenario was not found")
-	case errors.Is(err, runtimeService.ErrProjectMismatch):
+	case errors.Is(err, runtimeService.ErrProjectMismatch),
+		errors.Is(err, runtimeService.ErrPageMismatch):
 		writeError(w, http.StatusUnprocessableEntity, "unprocessable contend", "Project and scenario mismatch")
 	default:
 		writeError(w, http.StatusInternalServerError, "internal_error", "internal server error")

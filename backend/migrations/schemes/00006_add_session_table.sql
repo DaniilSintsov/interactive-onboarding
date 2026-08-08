@@ -18,8 +18,8 @@ CREATE TABLE onboarding.sessions
             ON DELETE RESTRICT
 );
 
-CREATE UNIQUE INDEX sessions_scenario_id_user_id_unique
-    ON onboarding.sessions (scenario_id, user_id);
+CREATE INDEX sessions_scenario_id_idx
+    ON onboarding.sessions (scenario_id);
 
 -- +goose Down
 

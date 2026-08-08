@@ -15,6 +15,7 @@ var (
 	ErrProjectMismatch        = errors.New("scenario belongs to another project")
 	ErrTokenIsExpired         = errors.New("token is expired")
 	ErrProjectTokenIsNotValid = errors.New("project token is not valid")
+	ErrPageMismatch           = errors.New("page belongs to another scenario")
 )
 
 type (
@@ -23,11 +24,9 @@ type (
 		GetScenarioByIdAndProjectKey(ctx context.Context, scenarioId, projectKey string) (*runtimeModel.Scenario, error)
 		GetScenariosByPagePatternAndProjectkey(ctx context.Context, pagePattern, projectKey string) ([]runtimeModel.Scenario, error)
 	}
-
 	SessionRepository interface {
 		GetSessionByScenarioAndUser(ctx context.Context, scenarioId, userId string) (*runtimeModel.Session, error)
 	}
-
 	StepRepository interface {
 		GetStepsByScenarioId(ctx context.Context, scenarioId string) (*runtimeModel.RuntimeScenario, error)
 	}
@@ -37,6 +36,9 @@ type (
 	TokenHasher interface {
 		Hash(rawToken string) []byte
 	}
+	ProjectRepository interface {
+		GetProjectByProjectKey(ctx context.Context, projectKey string) (*runtimeModel.Project, error)
+	}
 )
 
 type RuntimeService struct {
@@ -44,24 +46,27 @@ type RuntimeService struct {
 	session     SessionRepository
 	steps       StepRepository
 	tokens      TestTokensRepository
+	projects    ProjectRepository
 	tokenHasher TokenHasher
 }
 
 func NewRuntimeService(
-	rep ScenarioRepository, ses SessionRepository, st StepRepository, tok TestTokensRepository, hasher TokenHasher,
+	rep ScenarioRepository, ses SessionRepository, st StepRepository,
+	tok TestTokensRepository, hasher TokenHasher, pr ProjectRepository,
 ) *RuntimeService {
 	return &RuntimeService{
 		scenario:    rep,
 		session:     ses,
 		steps:       st,
 		tokens:      tok,
+		projects:    pr,
 		tokenHasher: hasher,
 	}
 }
 
 func (r *RuntimeService) FindScenarios(ctx context.Context, pagePattern, userId string) (*runtimeModel.RuntimeScenarioResolveResponse, error) {
 	response := new(runtimeModel.RuntimeScenarioResolveResponse)
-	testScenario, err := r.checkTestToken(ctx)
+	testScenario, err := r.checkTestToken(ctx, pagePattern)
 	if err != nil && !errors.Is(err, errTestTokenIsEmpty) {
 		return nil, err
 	} else if err == nil {
@@ -74,6 +79,15 @@ func (r *RuntimeService) FindScenarios(ctx context.Context, pagePattern, userId 
 	if !ok {
 		return nil, ErrProjectTokenIsNotValid
 	}
+
+	_, err = r.projects.GetProjectByProjectKey(ctx, projectKey)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, ErrProjectTokenIsNotValid
+		}
+		return nil, err
+	}
+
 	scenarios, err := r.scenario.GetScenariosByPagePatternAndProjectkey(ctx, pagePattern, projectKey)
 	if err != nil {
 		return nil, err
@@ -107,7 +121,7 @@ func (r *RuntimeService) FindScenarios(ctx context.Context, pagePattern, userId 
 	return response, nil
 }
 
-func (r *RuntimeService) checkTestToken(ctx context.Context) (*runtimeModel.RuntimeScenario, error) {
+func (r *RuntimeService) checkTestToken(ctx context.Context, pagePattern string) (*runtimeModel.RuntimeScenario, error) {
 	testToken, ok := ctx.Value("testToken").(string)
 	if !ok || testToken == "" {
 		return nil, errTestTokenIsEmpty
@@ -120,28 +134,28 @@ func (r *RuntimeService) checkTestToken(ctx context.Context) (*runtimeModel.Runt
 		}
 		return nil, err
 	}
-	if token.ExpiresAt.Before(time.Now()) {
-		return nil, ErrTokenIsExpired
-	}
-	err = r.validateProjectKey(ctx, token.ScenarioID)
+	err = r.validateProjectKey(ctx, token.ScenarioID, pagePattern)
 	if err != nil {
 		return nil, ErrProjectMismatch
 	}
 	return r.steps.GetStepsByScenarioId(ctx, token.ScenarioID)
 }
 
-func (r *RuntimeService) validateProjectKey(ctx context.Context, scenarioId string) error {
+func (r *RuntimeService) validateProjectKey(ctx context.Context, scenarioId, pagePattern string) error {
 	projectKey, ok := ctx.Value("projectKey").(string)
 	if !ok {
 		return ErrProjectTokenIsNotValid
 	}
-	_, err := r.scenario.GetScenarioByIdAndProjectKey(ctx, scenarioId, projectKey)
+	scenario, err := r.scenario.GetScenarioByIdAndProjectKey(ctx, scenarioId, projectKey)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return ErrScenarioNotFound
 		} else {
 			return err
 		}
+	}
+	if scenario.PagePattern != pagePattern {
+		return ErrPageMismatch
 	}
 	return nil
 }

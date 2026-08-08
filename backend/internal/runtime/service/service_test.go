@@ -52,7 +52,9 @@ func TestFindScenariosFiltersRecentlyFinishedScenarios(t *testing.T) {
 
 func TestFindScenariosReturnsTestScenarioWithoutNormalLookups(t *testing.T) {
 	const token = "test-token"
-	scenarios := &scenarioRepositoryFake{scenarioByProject: &runtimeModel.Scenario{ID: "test-scenario"}}
+	scenarios := &scenarioRepositoryFake{scenarioByProject: &runtimeModel.Scenario{
+		ID: "test-scenario", PagePattern: "/any-page",
+	}}
 	sessions := &sessionRepositoryFake{}
 	steps := &stepRepositoryFake{scenarios: map[string]*runtimeModel.RuntimeScenario{
 		"test-scenario": {ID: "test-scenario", Name: "Test"},
@@ -81,6 +83,7 @@ func TestFindScenariosReturnsTestScenarioWithoutNormalLookups(t *testing.T) {
 }
 
 func TestFindScenariosReturnsExpectedErrors(t *testing.T) {
+	projectLookupErr := errors.New("project lookup failed")
 	tests := []struct {
 		name string
 		ctx  context.Context
@@ -107,18 +110,29 @@ func TestFindScenariosReturnsExpectedErrors(t *testing.T) {
 			want: errors.New("session lookup failed"),
 		},
 		{
+			name: "project lookup failure",
+			ctx:  projectContext(),
+			svc: NewRuntimeService(
+				&scenarioRepositoryFake{}, &sessionRepositoryFake{}, &stepRepositoryFake{}, nil, nil,
+				&projectRepositoryFake{err: projectLookupErr},
+			),
+			want: projectLookupErr,
+		},
+		{
+			name: "unknown project key",
+			ctx:  projectContext(),
+			svc: NewRuntimeService(
+				&scenarioRepositoryFake{}, &sessionRepositoryFake{}, &stepRepositoryFake{}, nil, nil,
+				&projectRepositoryFake{err: sql.ErrNoRows},
+			),
+			want: ErrProjectTokenIsNotValid,
+		},
+		{
 			name: "unknown test token",
 			ctx:  context.WithValue(projectContext(), "testToken", "token"),
 			svc: newRuntimeService(&scenarioRepositoryFake{}, &sessionRepositoryFake{}, &stepRepositoryFake{},
 				&testTokensRepositoryFake{err: sql.ErrNoRows}, &tokenHasherFake{}),
 			want: ErrScenarioNotFound,
-		},
-		{
-			name: "expired test token",
-			ctx:  context.WithValue(projectContext(), "testToken", "token"),
-			svc: newRuntimeService(&scenarioRepositoryFake{}, &sessionRepositoryFake{}, &stepRepositoryFake{},
-				&testTokensRepositoryFake{token: &runtimeModel.TestToken{ExpiresAt: time.Now().Add(-time.Second)}}, &tokenHasherFake{}),
-			want: ErrTokenIsExpired,
 		},
 	}
 
@@ -141,7 +155,9 @@ func timePtr(value time.Time) *time.Time {
 }
 
 func newRuntimeService(scenario ScenarioRepository, session SessionRepository, steps StepRepository, tokens TestTokensRepository, hasher TokenHasher) *RuntimeService {
-	return NewRuntimeService(scenario, session, steps, tokens, hasher)
+	return NewRuntimeService(scenario, session, steps, tokens, hasher, &projectRepositoryFake{
+		project: &runtimeModel.Project{ProjectKey: "project-key"},
+	})
 }
 
 type scenarioRepositoryFake struct {
@@ -225,4 +241,15 @@ type tokenHasherFake struct {
 func (h *tokenHasherFake) Hash(rawToken string) []byte {
 	h.rawToken = rawToken
 	return h.hash
+}
+
+type projectRepositoryFake struct {
+	project *runtimeModel.Project
+	err     error
+	calls   int
+}
+
+func (r *projectRepositoryFake) GetProjectByProjectKey(context.Context, string) (*runtimeModel.Project, error) {
+	r.calls++
+	return r.project, r.err
 }

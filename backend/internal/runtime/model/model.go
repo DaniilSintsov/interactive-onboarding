@@ -89,3 +89,12 @@ type TestToken struct {
 	CreatedAt  time.Time `json:"created_at"`
 	ExpiresAt  time.Time `json:"expires_at"`
 }
+
+type Project struct {
+	ID         string
+	Name       string
+	ProjectKey string
+	CreatedAt  time.Time
+	UpdatedAt  time.Time
+	DeletedAt  *time.Time
+}
