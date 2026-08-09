@@ -118,13 +118,13 @@ func generatePDF(data service.DetailedScenarioAnalytics) ([]byte, error) {
 	printHeader()
 
 	pdf.SetFont("DejaVu", "", 10)
-	for i, step := range data.Steps {
+	for _, step := range data.Steps {
 		if pdf.GetY() > 180 {
 			pdf.AddPage()
 			printHeader()
 		}
 
-		title := truncateString(step.Title, 22)
+		title := truncateStringByWidth(pdf, step.Title, 45)
 		pdf.Cell(45, 7, title)
 		pdf.Cell(20, 7, fmt.Sprintf("%d", step.Position))
 		pdf.Cell(25, 7, fmt.Sprintf("%d", step.Shown))
@@ -170,4 +170,18 @@ func parseTimeRange(r *http.Request) (*time.Time, *time.Time, error) {
 	}
 
 	return &from, &to, nil
+}
+
+func truncateStringByWidth(pdf *gofpdf.Fpdf, s string, maxWidth float64) string {
+	if pdf.GetStringWidth(s) <= maxWidth {
+		return s
+	}
+	runes := []rune(s)
+	for i := len(runes); i > 0; i-- {
+		truncated := string(runes[:i]) + "..."
+		if pdf.GetStringWidth(truncated) <= maxWidth {
+			return truncated
+		}
+	}
+	return "..."
 }
