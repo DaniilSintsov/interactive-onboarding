@@ -21,6 +21,8 @@ SELECT id,
 FROM onboarding.sessions
 WHERE scenario_id = $1
   AND user_id = $2
+ORDER BY started_at DESC, id DESC
+LIMIT 1
 `
 
 type GetSessionByScenarioAndUserParams struct {

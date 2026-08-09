@@ -128,7 +128,7 @@ sql:
           - db_type: "uuid"
             go_type:
               import: "github.com/google/uuid"
-              type: "uuid"
+              type: "UUID"
   - engine: "postgresql"
     queries: "internal/tracking/repository/step/queries.sql"
     schema: "migrations/schemes"
@@ -144,7 +144,7 @@ sql:
           - db_type: "uuid"
             go_type:
               import: "github.com/google/uuid"
-              type: "uuid"
+              type: "UUID"
   - engine: "postgresql"
     queries: "internal/runtime/repository/scenario/queries.sql"
     schema: "migrations/schemes"

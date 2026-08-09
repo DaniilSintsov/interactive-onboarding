@@ -12,8 +12,7 @@ import (
 var (
 	errTestTokenIsEmpty       = errors.New("test token is empty")
 	ErrScenarioNotFound       = errors.New("scenario was not found")
-	ErrProjectMismatch        = errors.New("scenario belongs to another project")
-	ErrTokenIsExpired         = errors.New("token is expired")
+	ErrTestTokenInvalid       = errors.New("test token is invalid")
 	ErrProjectTokenIsNotValid = errors.New("project token is not valid")
 	ErrPageMismatch           = errors.New("page belongs to another scenario")
 )
@@ -130,13 +129,16 @@ func (r *RuntimeService) checkTestToken(ctx context.Context, pagePattern string)
 	token, err := r.tokens.GetTokenByHash(ctx, hash)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, ErrScenarioNotFound
+			return nil, ErrTestTokenInvalid
 		}
 		return nil, err
 	}
+	if !token.ExpiresAt.After(time.Now()) {
+		return nil, ErrTestTokenInvalid
+	}
 	err = r.validateProjectKey(ctx, token.ScenarioID, pagePattern)
 	if err != nil {
-		return nil, ErrProjectMismatch
+		return nil, err
 	}
 	return r.steps.GetStepsByScenarioId(ctx, token.ScenarioID)
 }
@@ -149,7 +151,7 @@ func (r *RuntimeService) validateProjectKey(ctx context.Context, scenarioId, pag
 	scenario, err := r.scenario.GetScenarioByIdAndProjectKey(ctx, scenarioId, projectKey)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return ErrScenarioNotFound
+			return ErrTestTokenInvalid
 		} else {
 			return err
 		}

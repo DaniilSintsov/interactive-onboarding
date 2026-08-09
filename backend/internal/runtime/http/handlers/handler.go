@@ -59,13 +59,12 @@ func (h *RuntimeHandler) GetScenario(w http.ResponseWriter, r *http.Request) {
 
 func writeServiceError(w http.ResponseWriter, err error) {
 	switch {
-	case errors.Is(err, runtimeService.ErrTokenIsExpired),
+	case errors.Is(err, runtimeService.ErrTestTokenInvalid),
 		errors.Is(err, runtimeService.ErrProjectTokenIsNotValid):
 		writeError(w, http.StatusForbidden, "forbidden", "invalid test or project token")
 	case errors.Is(err, runtimeService.ErrScenarioNotFound):
 		writeError(w, http.StatusNotFound, "not found", "Scenario was not found")
-	case errors.Is(err, runtimeService.ErrProjectMismatch),
-		errors.Is(err, runtimeService.ErrPageMismatch):
+	case errors.Is(err, runtimeService.ErrPageMismatch):
 		writeError(w, http.StatusUnprocessableEntity, "unprocessable contend", "Project and scenario mismatch")
 	default:
 		writeError(w, http.StatusInternalServerError, "internal_error", "internal server error")
