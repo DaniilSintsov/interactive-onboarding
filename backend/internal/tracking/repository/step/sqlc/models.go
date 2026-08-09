@@ -10,9 +10,9 @@ import (
 )
 
 type OnboardingStep struct {
-	ID           uuid.uuid          `json:"id"`
-	ScenarioID   uuid.uuid          `json:"scenario_id"`
-	ElementID    uuid.uuid          `json:"element_id"`
+	ID           uuid.UUID          `json:"id"`
+	ScenarioID   uuid.UUID          `json:"scenario_id"`
+	ElementID    uuid.UUID          `json:"element_id"`
 	StepNum      int32              `json:"step_num"`
 	Title        string             `json:"title"`
 	Description  string             `json:"description"`

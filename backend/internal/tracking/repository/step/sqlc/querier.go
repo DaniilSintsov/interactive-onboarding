@@ -11,7 +11,7 @@ import (
 )
 
 type Querier interface {
-	GetStepById(ctx context.Context, id uuid.uuid) (OnboardingStep, error)
+	GetStepById(ctx context.Context, id uuid.UUID) (OnboardingStep, error)
 }
 
 var _ Querier = (*Queries)(nil)

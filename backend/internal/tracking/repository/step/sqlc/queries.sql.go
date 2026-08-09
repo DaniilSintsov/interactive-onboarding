@@ -17,7 +17,7 @@ FROM onboarding.steps
 WHERE id = $1 AND deleted_at IS NULL
 `
 
-func (q *Queries) GetStepById(ctx context.Context, id uuid.uuid) (OnboardingStep, error) {
+func (q *Queries) GetStepById(ctx context.Context, id uuid.UUID) (OnboardingStep, error) {
 	row := q.db.QueryRow(ctx, getStepById, id)
 	var i OnboardingStep
 	err := row.Scan(

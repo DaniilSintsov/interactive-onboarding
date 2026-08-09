@@ -22,7 +22,7 @@ WHERE scenarios.id = $1
 `
 
 type GetScenarioByIdAndProjectKeyParams struct {
-	ID         uuid.uuid `json:"id"`
+	ID         uuid.UUID `json:"id"`
 	ProjectKey string    `json:"project_key"`
 }
 

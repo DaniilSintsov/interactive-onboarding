@@ -56,8 +56,8 @@ func (ns NullOnboardingScenarioStatus) Value() (driver.Value, error) {
 }
 
 type OnboardingScenario struct {
-	ID          uuid.uuid                `json:"id"`
-	ProjectID   uuid.uuid                `json:"project_id"`
+	ID          uuid.UUID                `json:"id"`
+	ProjectID   uuid.UUID                `json:"project_id"`
 	Name        string                   `json:"name"`
 	Description string                   `json:"description"`
 	PagePattern string                   `json:"page_pattern"`
