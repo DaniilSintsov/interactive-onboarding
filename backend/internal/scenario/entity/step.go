@@ -2,6 +2,7 @@ package entity
 
 import (
 	"encoding/json"
+	"math"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -13,6 +14,7 @@ import (
 const (
 	MaxStepTitleLength       = 255
 	MaxStepDescriptionLength = 2000
+	MaxStepNumber            = math.MaxInt32
 )
 
 type Step struct {
@@ -35,7 +37,7 @@ func (step *Step) Normalize() {
 
 func (step *Step) Validate() error {
 	step.Normalize()
-	
+
 	if step.ElementID == uuid.Nil {
 		return errs.ErrStepElementIDRequired
 	}
@@ -45,7 +47,7 @@ func (step *Step) Validate() error {
 	if strings.TrimSpace(step.Title) == "" {
 		return errs.ErrStepTitleRequired
 	}
-	if step.StepNum < 1 {
+	if step.StepNum < 1 || step.StepNum > MaxStepNumber {
 		return errs.ErrInvalidStepNumber
 	}
 	if utf8.RuneCountInString(step.Title) > MaxStepTitleLength {

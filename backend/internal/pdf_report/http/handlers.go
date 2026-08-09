@@ -33,7 +33,7 @@ func writeJSONError(w http.ResponseWriter, status int, code, message string) {
 func (h *PDFHandler) GenerateScenarioPDFReport(w http.ResponseWriter, r *http.Request) {
 	scenarioID, err := httpserver.ParseUUIDPath(r, "scenarioId", "invalid_scenario_id")
 	if err != nil {
-		writeJSONError(w, http.StatusBadRequest, "invalid_scenario_id", err.Error())
+		writeJSONError(w, http.StatusUnprocessableEntity, "invalid_scenario_id", err.Error())
 		return
 	}
 
@@ -62,13 +62,21 @@ func (h *PDFHandler) GenerateScenarioPDFReport(w http.ResponseWriter, r *http.Re
 	w.Header().Set("Content-Type", "application/pdf")
 	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=report_%s.pdf", scenarioID.String()))
 	if _, err := w.Write(pdfData); err != nil {
-		// После отправки заголовков JSON-ошибку уже не вернуть, только логируем
-		// TODO: добавить логирование ошибки
+		return
 	}
 }
 
+func truncateString(s string, maxRunes int) string {
+	runes := []rune(s)
+	if len(runes) <= maxRunes {
+		return s
+	}
+	return string(runes[:maxRunes]) + "..."
+}
+
 func generatePDF(data service.DetailedScenarioAnalytics) ([]byte, error) {
-	pdf := gofpdf.New("P", "mm", "A4", "")
+	pdf := gofpdf.New("L", "mm", "A4", "")
+	pdf.SetMargins(15, 15, 15)
 	pdf.AddPage()
 
 	pdf.AddUTF8Font("DejaVu", "", "fonts/DejaVuSans.ttf")
@@ -89,31 +97,43 @@ func generatePDF(data service.DetailedScenarioAnalytics) ([]byte, error) {
 	pdf.Ln(6)
 	pdf.Cell(40, 10, fmt.Sprintf("Completion Rate: %.2f%%", data.CompletionRate*100))
 	pdf.Ln(6)
+	pdf.Cell(40, 10, fmt.Sprintf("Skip Rate: %.2f%%", data.SkipRate*100))
+	pdf.Ln(6)
 	pdf.Cell(40, 10, fmt.Sprintf("Average Time: %.2f sec", data.AverageCompletionTimeSeconds))
 	pdf.Ln(12)
 
-	pdf.SetFont("DejaVu", "B", 12)
-	pdf.Cell(30, 10, "Step")
-	pdf.Cell(30, 10, "Position")
-	pdf.Cell(40, 10, "Shown")
-	pdf.Cell(40, 10, "Completed")
-	pdf.Cell(40, 10, "Completion Rate")
-	pdf.Ln(8)
+	var printHeader = func() {
+		pdf.SetFont("DejaVu", "B", 11)
+		pdf.Cell(45, 10, "Step")
+		pdf.Cell(20, 10, "Pos")
+		pdf.Cell(25, 10, "Shown")
+		pdf.Cell(30, 10, "Completed")
+		pdf.Cell(25, 10, "Skipped")
+		pdf.Cell(30, 10, "Completion %")
+		pdf.Cell(25, 10, "Skip %")
+		pdf.Cell(30, 10, "Drop-off %")
+		pdf.Ln(8)
+	}
 
-	pdf.SetFont("DejaVu", "", 11)
+	printHeader()
+
+	pdf.SetFont("DejaVu", "", 10)
 	for _, step := range data.Steps {
-		// Обрезаем через []rune для корректной работы с UTF-8
-		title := step.Title
-		runes := []rune(title)
-		if len(runes) > 20 {
-			title = string(runes[:20]) + "..."
+		if pdf.GetY() > 180 {
+			pdf.AddPage()
+			printHeader()
 		}
-		pdf.Cell(30, 8, title)
-		pdf.Cell(30, 8, fmt.Sprintf("%d", step.Position))
-		pdf.Cell(40, 8, fmt.Sprintf("%d", step.Shown))
-		pdf.Cell(40, 8, fmt.Sprintf("%d", step.Completed))
-		pdf.Cell(40, 8, fmt.Sprintf("%.2f%%", step.CompletionRate*100))
-		pdf.Ln(7)
+
+		title := truncateStringByWidth(pdf, step.Title, 45)
+		pdf.Cell(45, 7, title)
+		pdf.Cell(20, 7, fmt.Sprintf("%d", step.Position))
+		pdf.Cell(25, 7, fmt.Sprintf("%d", step.Shown))
+		pdf.Cell(30, 7, fmt.Sprintf("%d", step.Completed))
+		pdf.Cell(25, 7, fmt.Sprintf("%d", step.Skipped))
+		pdf.Cell(30, 7, fmt.Sprintf("%.1f%%", step.CompletionRate*100))
+		pdf.Cell(25, 7, fmt.Sprintf("%.1f%%", step.SkipRate*100))
+		pdf.Cell(30, 7, fmt.Sprintf("%.1f%%", step.DropOffRate*100))
+		pdf.Ln(6)
 	}
 
 	var buf bytes.Buffer
@@ -150,4 +170,18 @@ func parseTimeRange(r *http.Request) (*time.Time, *time.Time, error) {
 	}
 
 	return &from, &to, nil
+}
+
+func truncateStringByWidth(pdf *gofpdf.Fpdf, s string, maxWidth float64) string {
+	if pdf.GetStringWidth(s) <= maxWidth {
+		return s
+	}
+	runes := []rune(s)
+	for i := len(runes); i > 0; i-- {
+		truncated := string(runes[:i]) + "..."
+		if pdf.GetStringWidth(truncated) <= maxWidth {
+			return truncated
+		}
+	}
+	return "..."
 }

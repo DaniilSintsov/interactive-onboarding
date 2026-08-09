@@ -6,7 +6,7 @@ services:
     environment:
       HTTP_HOST: "0.0.0.0"
       HTTP_PORT: "8080"
-      HTTP_ALLOWED_ORIGINS: "http://localhost:5173"
+      HTTP_ALLOWED_ORIGINS: "http://localhost:3000,http://localhost:3001"
       HTTP_READ_HEADER_TIMEOUT: 5s
       HTTP_READ_TIMEOUT: 15s
       HTTP_WRITE_TIMEOUT: 30s
@@ -17,6 +17,7 @@ services:
       POSTGRES_DB: onboarding
       POSTGRES_USER: onboarding_user
       POSTGRES_PASSWORD: "12345"
+      ADMIN_TOKEN: "admintoken"
     ports:
       - "127.0.0.1:8080:8080"
     depends_on:

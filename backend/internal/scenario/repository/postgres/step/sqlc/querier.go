@@ -14,7 +14,7 @@ type Querier interface {
 	ApplyStepOrder(ctx context.Context, arg ApplyStepOrderParams) (int64, error)
 	CreateStep(ctx context.Context, arg CreateStepParams) (CreateStepRow, error)
 	DeleteStep(ctx context.Context, arg DeleteStepParams) (DeleteStepRow, error)
-	GetNextStepNumber(ctx context.Context, scenarioID uuid.UUID) (int32, error)
+	GetMaxStepNumber(ctx context.Context, scenarioID uuid.UUID) (int32, error)
 	GetStepByID(ctx context.Context, arg GetStepByIDParams) (GetStepByIDRow, error)
 	IsElementUsedBySteps(ctx context.Context, elementID uuid.UUID) (bool, error)
 	ListStepsByScenarioID(ctx context.Context, scenarioID uuid.UUID) ([]ListStepsByScenarioIDRow, error)

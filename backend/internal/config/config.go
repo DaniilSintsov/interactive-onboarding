@@ -12,7 +12,7 @@ type (
 	HTTPConfig struct {
 		Host              string        `env:"HTTP_HOST" envDefault:"localhost"`
 		Port              string        `env:"HTTP_PORT" envDefault:"8080"`
-		AllowedOrigins    []string      `env:"HTTP_ALLOWED_ORIGINS" envSeparator:"," envDefault:"http://localhost:5173"`
+		AllowedOrigins    []string      `env:"HTTP_ALLOWED_ORIGINS" envSeparator:"," envDefault:"http://localhost:3000,http://localhost:3001"`
 		ReadHeaderTimeout time.Duration `env:"HTTP_READ_HEADER_TIMEOUT" envDefault:"5s"`
 		ReadTimeout       time.Duration `env:"HTTP_READ_TIMEOUT" envDefault:"15s"`
 		WriteTimeout      time.Duration `env:"HTTP_WRITE_TIMEOUT" envDefault:"30s"`
@@ -31,6 +31,7 @@ type (
 	Config struct {
 		HTTPConfig HTTPConfig
 		PGConfig   PGConfig
+		AdminToken string `env:"ADMIN_TOKEN" envDefault:"admin_token"`
 	}
 )
 
