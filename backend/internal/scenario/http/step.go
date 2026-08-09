@@ -14,7 +14,7 @@ func (h *Handler) createStep(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var request CreateStepRequest
-	if err := httpserver.ParseJSON(w, r, &request); err != nil {
+	if err = httpserver.ParseJSON(w, r, &request); err != nil {
 		h.handleError(w, r, err)
 		return
 	}
@@ -45,7 +45,7 @@ func (h *Handler) updateStep(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var request UpdateStepRequest
-	if err := httpserver.ParseJSON(w, r, &request); err != nil {
+	if err = httpserver.ParseJSON(w, r, &request); err != nil {
 		h.handleError(w, r, err)
 		return
 	}
@@ -91,7 +91,7 @@ func (h *Handler) reorderSteps(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var request ReorderStepsRequest
-	if err := httpserver.ParseJSON(w, r, &request); err != nil {
+	if err = httpserver.ParseJSON(w, r, &request); err != nil {
 		h.handleError(w, r, err)
 		return
 	}

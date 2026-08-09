@@ -37,7 +37,7 @@ func (h *Handler) updateProject(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var request UpdateProjectRequest
-	if err := httpserver.ParseJSON(w, r, &request); err != nil {
+	if err = httpserver.ParseJSON(w, r, &request); err != nil {
 		h.handleError(w, r, err)
 		return
 	}

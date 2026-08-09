@@ -16,7 +16,7 @@ func (h *Handler) createScenario(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var request CreateScenarioRequest
-	if err := httpserver.ParseJSON(w, r, &request); err != nil {
+	if err = httpserver.ParseJSON(w, r, &request); err != nil {
 		h.handleError(w, r, err)
 		return
 	}
@@ -90,7 +90,7 @@ func (h *Handler) updateScenario(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var request UpdateScenarioRequest
-	if err := httpserver.ParseJSON(w, r, &request); err != nil {
+	if err = httpserver.ParseJSON(w, r, &request); err != nil {
 		h.handleError(w, r, err)
 		return
 	}

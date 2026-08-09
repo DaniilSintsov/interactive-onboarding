@@ -231,17 +231,17 @@ func (service *scenarioService) Update(
 	var result entity.Scenario
 
 	err = service.transactor.WithTx(ctx, func(ctx context.Context) error {
-		currentScenario, err := service.scenarioRepository.LockActive(ctx, normalizedParams.ScenarioID)
-		if err != nil {
-			return err
+		currentScenario, lockErr := service.scenarioRepository.LockActive(ctx, normalizedParams.ScenarioID)
+		if lockErr != nil {
+			return lockErr
 		}
 		if currentScenario.Status == entity.ScenarioStatusEnabled {
 			return errs.ErrScenarioImmutable
 		}
 
-		updatedScenario, err := service.scenarioRepository.Update(ctx, normalizedParams)
-		if err != nil {
-			return err
+		updatedScenario, updateErr := service.scenarioRepository.Update(ctx, normalizedParams)
+		if updateErr != nil {
+			return updateErr
 		}
 
 		result = updatedScenario

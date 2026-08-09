@@ -113,8 +113,8 @@ func (s *TrackingService) CreateEvent(ctx context.Context, event *trackingModel.
 		OccurredAt: occurredAt,
 		ReceivedAt: time.Now(),
 	}
-	if existing, found, err := s.lookupEvent(ctx, onboardingEvent, projectKey); err != nil || found {
-		return existing, err
+	if existing, found, lookUpErr := s.lookupEvent(ctx, onboardingEvent, projectKey); lookUpErr != nil || found {
+		return existing, lookUpErr
 	}
 
 	session, err := s.sessions.GetSessionById(ctx, event.SessionID)
@@ -134,12 +134,12 @@ func (s *TrackingService) CreateEvent(ctx context.Context, event *trackingModel.
 	}
 
 	if event.StepID != nil {
-		step, err := s.steps.GetStepById(ctx, *event.StepID)
-		if err != nil {
-			if errors.Is(err, sql.ErrNoRows) {
+		step, getErr := s.steps.GetStepById(ctx, *event.StepID)
+		if getErr != nil {
+			if errors.Is(getErr, sql.ErrNoRows) {
 				return nil, ErrStepNotFound
 			} else {
-				return nil, err
+				return nil, getErr
 			}
 		}
 
@@ -150,18 +150,18 @@ func (s *TrackingService) CreateEvent(ctx context.Context, event *trackingModel.
 
 	var response *trackingModel.EventAcceptedResponse
 	create := func(ctx context.Context) error {
-		existing, found, err := s.lookupEvent(ctx, onboardingEvent, projectKey)
-		if err != nil {
-			return err
+		existing, found, lookUpErr := s.lookupEvent(ctx, onboardingEvent, projectKey)
+		if lookUpErr != nil {
+			return lookUpErr
 		}
 		if found {
 			response = existing
 			return nil
 		}
 
-		created, err := s.events.RecordEvent(ctx, onboardingEvent)
-		if err != nil {
-			if errors.Is(err, sql.ErrNoRows) {
+		created, recordErr := s.events.RecordEvent(ctx, onboardingEvent)
+		if recordErr != nil {
+			if errors.Is(recordErr, sql.ErrNoRows) {
 				existing, found, lookupErr := s.lookupEvent(ctx, onboardingEvent, projectKey)
 				if lookupErr != nil {
 					return lookupErr
@@ -172,11 +172,11 @@ func (s *TrackingService) CreateEvent(ctx context.Context, event *trackingModel.
 				}
 				return ErrSessionNotActive
 			}
-			return fmt.Errorf("record event %q: %w", event.ID, err)
+			return fmt.Errorf("record event %q: %w", event.ID, recordErr)
 		}
 		if status, completesSession := completionStatus(event.Type); completesSession {
-			if _, err := s.sessions.UpdateSessionStatus(ctx, event.SessionID, status, occurredAt); err != nil {
-				return fmt.Errorf("complete session %q: %w", event.SessionID, err)
+			if _, updateSessionErr := s.sessions.UpdateSessionStatus(ctx, event.SessionID, status, occurredAt); updateSessionErr != nil {
+				return fmt.Errorf("complete session %q: %w", event.SessionID, updateSessionErr)
 			}
 		}
 		response = created

@@ -14,7 +14,7 @@ func (h *Handler) createElement(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var request CreateElementRequest
-	if err := httpserver.ParseJSON(w, r, &request); err != nil {
+	if err = httpserver.ParseJSON(w, r, &request); err != nil {
 		h.handleError(w, r, err)
 		return
 	}
@@ -46,7 +46,7 @@ func (h *Handler) updateElement(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var request UpdateElementRequest
-	if err := httpserver.ParseJSON(w, r, &request); err != nil {
+	if err = httpserver.ParseJSON(w, r, &request); err != nil {
 		h.handleError(w, r, err)
 		return
 	}

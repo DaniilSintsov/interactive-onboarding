@@ -42,9 +42,9 @@ func (e *EventRepository) RecordEvent(
 	}
 	var stepId pgtype.UUID
 	if onboarding.StepID != nil {
-		step, err := uuid.Parse(*onboarding.StepID)
-		if err != nil {
-			return nil, err
+		step, parseErr := uuid.Parse(*onboarding.StepID)
+		if parseErr != nil {
+			return nil, parseErr
 		}
 		stepId = pgtype.UUID{
 			Bytes: step,
@@ -83,9 +83,9 @@ func (e *EventRepository) GetEventByIdAndProjectKey(
 
 	var stepID pgtype.UUID
 	if requested.StepID != nil {
-		parsedStepID, err := uuid.Parse(*requested.StepID)
-		if err != nil {
-			return nil, false, err
+		parsedStepID, parseErr := uuid.Parse(*requested.StepID)
+		if parseErr != nil {
+			return nil, false, parseErr
 		}
 		stepID = pgtype.UUID{Bytes: parsedStepID, Valid: true}
 	}

@@ -97,24 +97,24 @@ func (service *projectService) Create(
 		project.ProjectKey = projectKey
 
 		err = service.transactor.WithTx(ctx, func(ctx context.Context) error {
-			createdProject, err := service.projectRepository.Create(ctx, project)
-			if err != nil {
-				if errors.Is(err, errs.ErrProjectKeyAlreadyExists) {
-					return err
+			createdProject, createErr := service.projectRepository.Create(ctx, project)
+			if createErr != nil {
+				if errors.Is(createErr, errs.ErrProjectKeyAlreadyExists) {
+					return createErr
 				}
-				return service.wrapCreateError(err, params.Name)
+				return service.wrapCreateError(createErr, params.Name)
 			}
 
 			createdElements := make([]entity.Element, 0, len(params.Elements))
 			for _, element := range params.Elements {
-				createdElement, err := service.elementCreator.Create(ctx, port.CreateElementParams{
+				createdElement, createElementErr := service.elementCreator.Create(ctx, port.CreateElementParams{
 					ProjectID:   createdProject.ID,
 					Key:         element.Key,
 					Label:       element.Label,
 					Description: element.Description,
 				})
-				if err != nil {
-					return service.wrapCreateError(err, params.Name)
+				if createElementErr != nil {
+					return service.wrapCreateError(createElementErr, params.Name)
 				}
 				createdElements = append(createdElements, createdElement)
 			}

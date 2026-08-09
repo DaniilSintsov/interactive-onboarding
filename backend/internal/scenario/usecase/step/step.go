@@ -99,13 +99,13 @@ func (service *stepService) Create(
 	var result entity.Step
 
 	err = service.transactor.WithTx(ctx, func(ctx context.Context) error {
-		scenario, err := service.lockMutableScenario(ctx, step.ScenarioID)
-		if err != nil {
-			return err
+		scenario, lockErr := service.lockMutableScenario(ctx, step.ScenarioID)
+		if lockErr != nil {
+			return lockErr
 		}
 
-		if err := service.elementLocker.LockActive(ctx, scenario.ProjectID, step.ElementID); err != nil {
-			return err
+		if lockErr = service.elementLocker.LockActive(ctx, scenario.ProjectID, step.ElementID); lockErr != nil {
+			return lockErr
 		}
 
 		if params.StepNum == nil {
@@ -115,9 +115,9 @@ func (service *stepService) Create(
 			}
 		}
 
-		createdStep, err := service.stepRepository.Create(ctx, step)
-		if err != nil {
-			return err
+		createdStep, createErr := service.stepRepository.Create(ctx, step)
+		if createErr != nil {
+			return createErr
 		}
 
 		result = createdStep
@@ -149,32 +149,32 @@ func (service *stepService) Update(
 	var result entity.Step
 
 	err = service.transactor.WithTx(ctx, func(ctx context.Context) error {
-		scenario, err := service.lockMutableScenario(ctx, normalizedParams.ScenarioID)
-		if err != nil {
-			return err
+		scenario, lockErr := service.lockMutableScenario(ctx, normalizedParams.ScenarioID)
+		if lockErr != nil {
+			return lockErr
 		}
 
-		if _, err := service.stepRepository.LockActive(
+		if _, lockErr = service.stepRepository.LockActive(
 			ctx,
 			normalizedParams.ScenarioID,
 			normalizedParams.StepID,
-		); err != nil {
-			return err
+		); lockErr != nil {
+			return lockErr
 		}
 
 		if normalizedParams.ElementID != nil {
-			if err := service.elementLocker.LockActive(
+			if lockErr = service.elementLocker.LockActive(
 				ctx,
 				scenario.ProjectID,
 				*normalizedParams.ElementID,
-			); err != nil {
-				return err
+			); lockErr != nil {
+				return lockErr
 			}
 		}
 
-		updatedStep, err := service.stepRepository.Update(ctx, normalizedParams)
-		if err != nil {
-			return err
+		updatedStep, updateErr := service.stepRepository.Update(ctx, normalizedParams)
+		if updateErr != nil {
+			return updateErr
 		}
 
 		result = updatedStep
