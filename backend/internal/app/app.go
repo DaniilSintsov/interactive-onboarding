@@ -26,6 +26,7 @@ import (
 	"github.com/DaniilSintsov/interactive-onboarding/backend/internal/project/usecase/element"
 	"github.com/DaniilSintsov/interactive-onboarding/backend/internal/project/usecase/project"
 	runtimehttp "github.com/DaniilSintsov/interactive-onboarding/backend/internal/runtime/http/handlers"
+	runtimeProjectsDB "github.com/DaniilSintsov/interactive-onboarding/backend/internal/runtime/repository/projects"
 	runtimeScenarioDB "github.com/DaniilSintsov/interactive-onboarding/backend/internal/runtime/repository/scenario"
 	runtimeSessionDB "github.com/DaniilSintsov/interactive-onboarding/backend/internal/runtime/repository/session"
 	runtimeStepDB "github.com/DaniilSintsov/interactive-onboarding/backend/internal/runtime/repository/step"
@@ -82,19 +83,14 @@ func Run(logger *zap.Logger, cfg *config.Config) error {
 	stepRepository := stepDB.NewRepository(dbPool, txManager)
 
 	runtimeScenarioRepository := runtimeScenarioDB.NewScenarioRepository(dbPool)
+	runtimeProjectRepository := runtimeProjectsDB.NewProjectRepository(dbPool)
 	runtimeSessionRepository := runtimeSessionDB.NewSessionRepository(dbPool)
 	runtimeTokenRepository := runtimeTokenDB.NewTestTokensRepository(dbPool)
 	runtimeStepRepository := runtimeStepDB.NewStepRepository(dbPool)
 
-	trackingConnection, err := dbPool.Acquire(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to acquire tracking database connection: %w", err)
-	}
-	defer trackingConnection.Release()
-
 	trackingScenarioRepository := trackingScenarioDB.NewScenarioRepository(dbPool)
 	trackingSessionRepository := trackingSessionDB.NewSessionRepository(dbPool)
-	trackingEventRepository := trackingEventDB.NewEventRepository(trackingConnection.Conn())
+	trackingEventRepository := trackingEventDB.NewEventRepository(dbPool)
 	trackingStepRepository := trackingStepDB.NewStepRepository(dbPool)
 
 	analyticsRepository := analyticsDB.NewAnalyticsRepository(dbPool)
@@ -149,6 +145,7 @@ func Run(logger *zap.Logger, cfg *config.Config) error {
 		runtimeStepRepository,
 		runtimeTokenRepository,
 		testToken,
+		runtimeProjectRepository,
 	)
 
 	trackingService := tracking.NewTrackingService(
@@ -156,6 +153,7 @@ func Run(logger *zap.Logger, cfg *config.Config) error {
 		trackingEventRepository,
 		trackingScenarioRepository,
 		trackingStepRepository,
+		txManager,
 	)
 
 	analyticsService := analytics.NewAnalyticsService(analyticsRepository)
