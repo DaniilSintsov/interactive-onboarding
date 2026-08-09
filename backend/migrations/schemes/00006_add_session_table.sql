@@ -18,8 +18,9 @@ CREATE TABLE onboarding.sessions
             ON DELETE RESTRICT
 );
 
-CREATE INDEX sessions_scenario_id_idx
-    ON onboarding.sessions (scenario_id);
+CREATE UNIQUE INDEX sessions_active_scenario_user_unique
+    ON onboarding.sessions (scenario_id, user_id)
+    WHERE status = 'active';
 
 -- +goose Down
 

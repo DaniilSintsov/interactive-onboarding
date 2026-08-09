@@ -61,15 +61,54 @@ func (q *Queries) CreateEvent(ctx context.Context, arg CreateEventParams) (Onboa
 	return i, err
 }
 
-const getEventById = `-- name: GetEventById :one
-SELECT id, session_id, step_id, type, data, occurred_at, received_at
-FROM onboarding.events
-WHERE "id" = $1
+const getEventByIdAndProjectKey = `-- name: GetEventByIdAndProjectKey :one
+SELECT events.id, events.session_id, events.step_id, events.type, events.data, events.occurred_at, events.received_at,
+       events.session_id = $1
+         AND events.step_id IS NOT DISTINCT FROM $2::uuid
+         AND events.type = $3
+         AND events.data = $4::jsonb
+         AND events.occurred_at = $5 AS request_matches
+FROM onboarding.events AS events
+JOIN onboarding.sessions AS sessions ON sessions.id = events.session_id
+JOIN onboarding.scenarios AS scenarios ON scenarios.id = sessions.scenario_id
+JOIN onboarding.projects AS projects ON projects.id = scenarios.project_id
+WHERE events.id = $6
+  AND projects.project_key = $7
+  AND projects.deleted_at IS NULL
 `
 
-func (q *Queries) GetEventById(ctx context.Context, id uuid.UUID) (OnboardingEvent, error) {
-	row := q.db.QueryRow(ctx, getEventById, id)
-	var i OnboardingEvent
+type GetEventByIdAndProjectKeyParams struct {
+	SessionID  uuid.UUID          `json:"session_id"`
+	StepID     pgtype.UUID        `json:"step_id"`
+	Type       string             `json:"type"`
+	Data       []byte             `json:"data"`
+	OccurredAt pgtype.Timestamptz `json:"occurred_at"`
+	EventID    uuid.UUID          `json:"event_id"`
+	ProjectKey string             `json:"project_key"`
+}
+
+type GetEventByIdAndProjectKeyRow struct {
+	ID             uuid.UUID          `json:"id"`
+	SessionID      uuid.UUID          `json:"session_id"`
+	StepID         pgtype.UUID        `json:"step_id"`
+	Type           string             `json:"type"`
+	Data           []byte             `json:"data"`
+	OccurredAt     pgtype.Timestamptz `json:"occurred_at"`
+	ReceivedAt     pgtype.Timestamptz `json:"received_at"`
+	RequestMatches pgtype.Bool        `json:"request_matches"`
+}
+
+func (q *Queries) GetEventByIdAndProjectKey(ctx context.Context, arg GetEventByIdAndProjectKeyParams) (GetEventByIdAndProjectKeyRow, error) {
+	row := q.db.QueryRow(ctx, getEventByIdAndProjectKey,
+		arg.SessionID,
+		arg.StepID,
+		arg.Type,
+		arg.Data,
+		arg.OccurredAt,
+		arg.EventID,
+		arg.ProjectKey,
+	)
+	var i GetEventByIdAndProjectKeyRow
 	err := row.Scan(
 		&i.ID,
 		&i.SessionID,
@@ -78,6 +117,7 @@ func (q *Queries) GetEventById(ctx context.Context, id uuid.UUID) (OnboardingEve
 		&i.Data,
 		&i.OccurredAt,
 		&i.ReceivedAt,
+		&i.RequestMatches,
 	)
 	return i, err
 }

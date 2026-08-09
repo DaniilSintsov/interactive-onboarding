@@ -31,7 +31,7 @@ func (r *SessionRepository) getQueries(ctx context.Context) *session.Queries {
 	return r.queries
 }
 
-func (r *SessionRepository) CreateSession(
+func (r *SessionRepository) CreateOrGetActiveSession(
 	ctx context.Context, onboarding *trackingModel.OnboardingSession,
 ) (*trackingModel.OnboardingSession, error) {
 	if onboarding == nil {
@@ -46,13 +46,11 @@ func (r *SessionRepository) CreateSession(
 	if err != nil {
 		return nil, err
 	}
-	created, err := r.getQueries(ctx).CreateSession(ctx, session.CreateSessionParams{
+	created, err := r.getQueries(ctx).CreateOrGetActiveSession(ctx, session.CreateOrGetActiveSessionParams{
 		ID:         sessionID,
 		ScenarioID: scenarioID,
 		UserID:     onboarding.UserID,
-		Status:     string(onboarding.Status),
 		StartedAt:  pgtype.Timestamptz{Time: onboarding.StartedAt, Valid: true},
-		FinishedAt: timestamp(onboarding.FinishedAt),
 	})
 	if err != nil {
 		return nil, err
@@ -78,24 +76,6 @@ func (r *SessionRepository) UpdateSessionStatus(
 	}
 
 	return adaptSession(updated), nil
-}
-
-func (r *SessionRepository) GetSessionByScenarioAndUser(
-	ctx context.Context, scenarioID, userID string,
-) (*trackingModel.OnboardingSession, error) {
-	parsedScenarioID, err := uuid.Parse(scenarioID)
-	if err != nil {
-		return nil, err
-	}
-	found, err := r.getQueries(ctx).GetSessionByScenarioAndUser(ctx, session.GetSessionByScenarioAndUserParams{
-		ScenarioID: parsedScenarioID,
-		UserID:     userID,
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	return adaptSession(found), nil
 }
 
 func (r *SessionRepository) GetSessionById(

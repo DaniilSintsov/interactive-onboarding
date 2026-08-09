@@ -69,20 +69,49 @@ func (e *EventRepository) RecordEvent(
 	return adaptEvent(createdEvent, false), nil
 }
 
-func (e *EventRepository) GetEventById(
-	ctx context.Context, eventID string,
-) (*trackingModel.EventAcceptedResponse, error) {
-	parsedEventID, err := uuid.Parse(eventID)
+func (e *EventRepository) GetEventByIdAndProjectKey(
+	ctx context.Context, requested *trackingModel.OnboardingEvent, projectKey string,
+) (*trackingModel.EventAcceptedResponse, bool, error) {
+	parsedEventID, err := uuid.Parse(requested.ID)
 	if err != nil {
-		return nil, err
+		return nil, false, err
+	}
+	parsedSessionID, err := uuid.Parse(requested.SessionID)
+	if err != nil {
+		return nil, false, err
 	}
 
-	found, err := e.getQueries(ctx).GetEventById(ctx, parsedEventID)
-	if err != nil {
-		return nil, err
+	var stepID pgtype.UUID
+	if requested.StepID != nil {
+		parsedStepID, err := uuid.Parse(*requested.StepID)
+		if err != nil {
+			return nil, false, err
+		}
+		stepID = pgtype.UUID{Bytes: parsedStepID, Valid: true}
 	}
 
-	return adaptEvent(found, true), nil
+	found, err := e.getQueries(ctx).GetEventByIdAndProjectKey(ctx, event.GetEventByIdAndProjectKeyParams{
+		SessionID:  parsedSessionID,
+		StepID:     stepID,
+		Type:       string(requested.Type),
+		Data:       requested.Data,
+		OccurredAt: pgtype.Timestamptz{Time: requested.OccurredAt, Valid: true},
+		EventID:    parsedEventID,
+		ProjectKey: projectKey,
+	})
+	if err != nil {
+		return nil, false, err
+	}
+
+	return adaptEvent(event.OnboardingEvent{
+		ID:         found.ID,
+		SessionID:  found.SessionID,
+		StepID:     found.StepID,
+		Type:       found.Type,
+		Data:       found.Data,
+		OccurredAt: found.OccurredAt,
+		ReceivedAt: found.ReceivedAt,
+	}, true), found.RequestMatches.Bool, nil
 }
 
 func adaptEvent(source event.OnboardingEvent, duplicate bool) *trackingModel.EventAcceptedResponse {

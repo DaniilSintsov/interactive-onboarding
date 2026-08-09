@@ -75,8 +75,11 @@ func writeServiceError(w http.ResponseWriter, err error) {
 		errors.Is(err, trackingService.ErrStepNotFound):
 		writeError(w, http.StatusNotFound, "not_found", err.Error())
 	case errors.Is(err, trackingService.ErrSessionNotActive),
-		errors.Is(err, trackingService.ErrStepScenarioMismatch):
+		errors.Is(err, trackingService.ErrStepScenarioMismatch),
+		errors.Is(err, trackingService.ErrEventIDConflict):
 		writeError(w, http.StatusConflict, "conflict", err.Error())
+	case errors.Is(err, trackingService.ErrProjectKeyInvalid):
+		writeError(w, http.StatusForbidden, "forbidden", err.Error())
 	default:
 		writeError(w, http.StatusInternalServerError, "internal_error", "internal server error")
 	}

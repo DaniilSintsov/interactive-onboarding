@@ -13,6 +13,45 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 )
 
+func TestStartSessionUsesAtomicCreateOrGet(t *testing.T) {
+	existing := &trackingModel.OnboardingSession{
+		ID:         uuid.NewString(),
+		ScenarioID: uuid.NewString(),
+		UserID:     "user-1",
+		Status:     trackingModel.SessionStatusActive,
+	}
+	sessions := &sessionFake{createResponse: existing}
+	service := newEventService(sessions, &eventFake{})
+
+	response, err := service.StartSession(testContext(), &trackingModel.StartSessionRequest{
+		ScenarioID: existing.ScenarioID,
+		UserID:     existing.UserID,
+	})
+
+	if err != nil {
+		t.Fatalf("StartSession() error = %v", err)
+	}
+	if response != existing {
+		t.Fatalf("StartSession() response = %#v, want existing active session", response)
+	}
+	if sessions.createCalls != 1 {
+		t.Fatalf("CreateOrGetActiveSession() calls = %d, want 1", sessions.createCalls)
+	}
+}
+
+func TestStartSessionRejectsMissingProjectKey(t *testing.T) {
+	service := newEventService(&sessionFake{}, &eventFake{})
+
+	_, err := service.StartSession(context.Background(), &trackingModel.StartSessionRequest{
+		ScenarioID: uuid.NewString(),
+		UserID:     "user-1",
+	})
+
+	if !errors.Is(err, ErrProjectKeyInvalid) {
+		t.Fatalf("StartSession() error = %v, want ErrProjectKeyInvalid", err)
+	}
+}
+
 func TestCreateEventRecordsEventInTransaction(t *testing.T) {
 	ctx := testContext()
 	sessions := &sessionFake{}
@@ -83,6 +122,58 @@ func TestCreateEventReturnsExistingDuplicateWithoutChangingSession(t *testing.T)
 	}
 	if sessions.getSessionCalls != 0 {
 		t.Fatalf("GetSessionById() calls = %d, want 0 for duplicate event", sessions.getSessionCalls)
+	}
+}
+
+func TestCreateEventRejectsReusedIDWithDifferentRequest(t *testing.T) {
+	events := &eventFake{
+		getResponse: &trackingModel.EventAcceptedResponse{Duplicate: true},
+		mismatch:    true,
+	}
+	sessions := &sessionFake{}
+	service := newEventService(sessions, events)
+
+	_, err := service.CreateEvent(testContext(), validEvent(trackingModel.EventTypeStepShown))
+
+	if !errors.Is(err, ErrEventIDConflict) {
+		t.Fatalf("CreateEvent() error = %v, want ErrEventIDConflict", err)
+	}
+	if sessions.getSessionCalls != 0 {
+		t.Fatalf("GetSessionById() calls = %d, want 0", sessions.getSessionCalls)
+	}
+	if service.transactor.(*transactorFake).called {
+		t.Fatal("mismatched duplicate started a transaction")
+	}
+}
+
+func TestCreateEventRejectsEventIDOwnedByAnotherProject(t *testing.T) {
+	events := &eventFake{
+		getErr:    sql.ErrNoRows,
+		recordErr: &pgconn.PgError{Code: "23505"},
+	}
+	service := newEventService(&sessionFake{}, events)
+
+	response, err := service.CreateEvent(testContext(), validEvent(trackingModel.EventTypeStepShown))
+
+	if !errors.Is(err, ErrEventIDConflict) {
+		t.Fatalf("CreateEvent() error = %v, want ErrEventIDConflict", err)
+	}
+	if response != nil {
+		t.Fatalf("CreateEvent() response = %#v, want nil", response)
+	}
+	if events.projectKey != "project-key" {
+		t.Fatalf("event lookup project key = %q, want project-key", events.projectKey)
+	}
+}
+
+func TestCreateEventRejectsMissingProjectKey(t *testing.T) {
+	events := &eventFake{}
+	service := newEventService(&sessionFake{}, events)
+
+	_, err := service.CreateEvent(context.Background(), validEvent(trackingModel.EventTypeStepShown))
+
+	if !errors.Is(err, ErrProjectKeyInvalid) {
+		t.Fatalf("CreateEvent() error = %v, want ErrProjectKeyInvalid", err)
 	}
 }
 
@@ -157,6 +248,42 @@ func TestCreateEventHandlesConcurrentDuplicate(t *testing.T) {
 	}
 }
 
+func TestCreateEventReturnsSessionNotActiveWhenSessionCompletesConcurrently(t *testing.T) {
+	events := &eventFake{
+		getErr:    sql.ErrNoRows,
+		recordErr: sql.ErrNoRows,
+	}
+	service := newEventService(&sessionFake{}, events)
+
+	response, err := service.CreateEvent(testContext(), validEvent(trackingModel.EventTypeStepShown))
+
+	if !errors.Is(err, ErrSessionNotActive) {
+		t.Fatalf("CreateEvent() error = %v, want ErrSessionNotActive", err)
+	}
+	if response != nil {
+		t.Fatalf("CreateEvent() response = %#v, want nil", response)
+	}
+}
+
+func TestCreateEventReturnsDuplicateWhenConcurrentCompletionRecordedSameEvent(t *testing.T) {
+	existing := &trackingModel.EventAcceptedResponse{Duplicate: true}
+	events := &eventFake{
+		getErr:       sql.ErrNoRows,
+		recordErr:    sql.ErrNoRows,
+		getAfterFail: existing,
+	}
+	service := newEventService(&sessionFake{}, events)
+
+	response, err := service.CreateEvent(testContext(), validEvent(trackingModel.EventTypeOnboardingCompleted))
+
+	if err != nil {
+		t.Fatalf("CreateEvent() error = %v", err)
+	}
+	if response != existing {
+		t.Fatalf("CreateEvent() response = %#v, want concurrent duplicate", response)
+	}
+}
+
 func validEvent(eventType trackingModel.EventType) *trackingModel.CreateEventRequest {
 	event := &trackingModel.CreateEventRequest{
 		ID:         uuid.NewString(),
@@ -207,10 +334,16 @@ type sessionFake struct {
 	getSession       *trackingModel.OnboardingSession
 	getSessionErr    error
 	getSessionCalls  int
+	createResponse   *trackingModel.OnboardingSession
+	createErr        error
+	createCalls      int
 }
 
-func (*sessionFake) CreateSession(context.Context, *trackingModel.OnboardingSession) (*trackingModel.OnboardingSession, error) {
-	return nil, errors.New("not implemented")
+func (s *sessionFake) CreateOrGetActiveSession(
+	context.Context, *trackingModel.OnboardingSession,
+) (*trackingModel.OnboardingSession, error) {
+	s.createCalls++
+	return s.createResponse, s.createErr
 }
 
 func (s *sessionFake) UpdateSessionStatus(_ context.Context, sessionID string, status trackingModel.SessionStatus, finishedAt time.Time) (*trackingModel.OnboardingSession, error) {
@@ -219,10 +352,6 @@ func (s *sessionFake) UpdateSessionStatus(_ context.Context, sessionID string, s
 	s.updatedStatus = status
 	s.finishedAt = finishedAt
 	return &trackingModel.OnboardingSession{}, nil
-}
-
-func (*sessionFake) GetSessionByScenarioAndUser(context.Context, string, string) (*trackingModel.OnboardingSession, error) {
-	return nil, errors.New("not implemented")
 }
 
 func (s *sessionFake) GetSessionById(context.Context, string) (*trackingModel.OnboardingSession, error) {
@@ -266,6 +395,8 @@ type eventFake struct {
 	getErr       error
 	recordErr    error
 	recorded     *trackingModel.OnboardingEvent
+	mismatch     bool
+	projectKey   string
 }
 
 func (e *eventFake) RecordEvent(_ context.Context, event *trackingModel.OnboardingEvent) (*trackingModel.EventAcceptedResponse, error) {
@@ -276,12 +407,15 @@ func (e *eventFake) RecordEvent(_ context.Context, event *trackingModel.Onboardi
 	return &trackingModel.EventAcceptedResponse{Event: *event}, nil
 }
 
-func (e *eventFake) GetEventById(context.Context, string) (*trackingModel.EventAcceptedResponse, error) {
+func (e *eventFake) GetEventByIdAndProjectKey(
+	_ context.Context, _ *trackingModel.OnboardingEvent, projectKey string,
+) (*trackingModel.EventAcceptedResponse, bool, error) {
+	e.projectKey = projectKey
 	if e.getAfterFail != nil && e.recorded != nil {
-		return e.getAfterFail, nil
+		return e.getAfterFail, !e.mismatch, nil
 	}
 	if e.getResponse != nil {
-		return e.getResponse, nil
+		return e.getResponse, !e.mismatch, nil
 	}
-	return nil, e.getErr
+	return nil, false, e.getErr
 }

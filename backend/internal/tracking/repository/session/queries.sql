@@ -1,14 +1,11 @@
--- name: CreateSession :one
+-- name: CreateOrGetActiveSession :one
 INSERT INTO onboarding.sessions
   ("id", "scenario_id", "user_id", "status", "started_at", "finished_at")
 VALUES
-  ($1, $2, $3, $4, $5, $6)
+  ($1, $2, $3, 'active', $4, NULL)
+ON CONFLICT ("scenario_id", "user_id") WHERE "status" = 'active'
+DO UPDATE SET "user_id" = EXCLUDED."user_id"
 RETURNING *;
-
--- name: GetSessionByScenarioAndUser :one
-SELECT *
-FROM onboarding.sessions
-WHERE "scenario_id" = $1 AND "user_id" = $2;
 
 -- name: SelectSessionById :one
 SELECT *

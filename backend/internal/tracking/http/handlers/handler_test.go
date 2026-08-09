@@ -156,6 +156,8 @@ func TestServiceErrorsAreMapped(t *testing.T) {
 		{name: "step missing", err: trackingService.ErrStepNotFound, status: http.StatusNotFound, code: "not_found", message: trackingService.ErrStepNotFound.Error()},
 		{name: "session inactive", err: trackingService.ErrSessionNotActive, status: http.StatusConflict, code: "conflict", message: trackingService.ErrSessionNotActive.Error()},
 		{name: "step mismatch", err: trackingService.ErrStepScenarioMismatch, status: http.StatusConflict, code: "conflict", message: trackingService.ErrStepScenarioMismatch.Error()},
+		{name: "event ID conflict", err: trackingService.ErrEventIDConflict, status: http.StatusConflict, code: "conflict", message: trackingService.ErrEventIDConflict.Error()},
+		{name: "invalid project key", err: trackingService.ErrProjectKeyInvalid, status: http.StatusForbidden, code: "forbidden", message: trackingService.ErrProjectKeyInvalid.Error()},
 		{name: "unexpected", err: errors.New("database unavailable"), status: http.StatusInternalServerError, code: "internal_error", message: "internal server error"},
 	}
 

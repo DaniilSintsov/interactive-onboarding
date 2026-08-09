@@ -21,18 +21,21 @@ var (
 	ErrSessionNotActive     = errors.New("onboarding session is not active")
 	ErrStepNotFound         = errors.New("onboarding step not found")
 	ErrStepScenarioMismatch = errors.New("onboarding step does not belong to session scenario")
+	ErrEventIDConflict      = errors.New("event ID is already used by another event")
+	ErrProjectKeyInvalid    = errors.New("project key is not valid")
 )
 
 type (
 	SessionRepository interface {
-		CreateSession(context.Context, *trackingModel.OnboardingSession) (*trackingModel.OnboardingSession, error)
+		CreateOrGetActiveSession(context.Context, *trackingModel.OnboardingSession) (*trackingModel.OnboardingSession, error)
 		UpdateSessionStatus(context.Context, string, trackingModel.SessionStatus, time.Time) (*trackingModel.OnboardingSession, error)
-		GetSessionByScenarioAndUser(ctx context.Context, scenarioId string, userId string) (*trackingModel.OnboardingSession, error)
 		GetSessionById(context.Context, string) (*trackingModel.OnboardingSession, error)
 	}
 	EventRepository interface {
 		RecordEvent(context.Context, *trackingModel.OnboardingEvent) (*trackingModel.EventAcceptedResponse, error)
-		GetEventById(context.Context, string) (*trackingModel.EventAcceptedResponse, error)
+		GetEventByIdAndProjectKey(
+			context.Context, *trackingModel.OnboardingEvent, string,
+		) (*trackingModel.EventAcceptedResponse, bool, error)
 	}
 	Transactor interface {
 		WithTx(context.Context, func(context.Context) error) error
@@ -79,22 +82,15 @@ func (s *TrackingService) StartSession(ctx context.Context, session *trackingMod
 		return nil, err
 	}
 
-	existingSession, err := s.sessions.GetSessionByScenarioAndUser(ctx, session.ScenarioID, session.UserID)
-	if err == nil {
-		return existingSession, nil
-	} else if errors.Is(err, sql.ErrNoRows) {
-		onboardingSession := &trackingModel.OnboardingSession{
-			ID:         uuid.NewString(),
-			ScenarioID: session.ScenarioID,
-			UserID:     session.UserID,
-			Status:     trackingModel.SessionStatusActive,
-			StartedAt:  time.Now(),
-			FinishedAt: nil,
-		}
-		return s.sessions.CreateSession(ctx, onboardingSession)
-	} else {
-		return nil, err
+	onboardingSession := &trackingModel.OnboardingSession{
+		ID:         uuid.NewString(),
+		ScenarioID: session.ScenarioID,
+		UserID:     session.UserID,
+		Status:     trackingModel.SessionStatusActive,
+		StartedAt:  time.Now(),
+		FinishedAt: nil,
 	}
+	return s.sessions.CreateOrGetActiveSession(ctx, onboardingSession)
 }
 
 func (s *TrackingService) CreateEvent(ctx context.Context, event *trackingModel.CreateEventRequest) (*trackingModel.EventAcceptedResponse, error) {
@@ -102,6 +98,24 @@ func (s *TrackingService) CreateEvent(ctx context.Context, event *trackingModel.
 	if err != nil {
 		return nil, err
 	}
+	projectKey, err := projectKeyFromContext(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	onboardingEvent := &trackingModel.OnboardingEvent{
+		ID:         event.ID,
+		SessionID:  event.SessionID,
+		StepID:     event.StepID,
+		Type:       event.Type,
+		Data:       event.Data,
+		OccurredAt: occurredAt,
+		ReceivedAt: time.Now(),
+	}
+	if existing, found, err := s.lookupEvent(ctx, onboardingEvent, projectKey); err != nil || found {
+		return existing, err
+	}
+
 	session, err := s.sessions.GetSessionById(ctx, event.SessionID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -133,29 +147,30 @@ func (s *TrackingService) CreateEvent(ctx context.Context, event *trackingModel.
 		}
 	}
 
-	onboardingEvent := &trackingModel.OnboardingEvent{
-		ID:         event.ID,
-		SessionID:  event.SessionID,
-		StepID:     event.StepID,
-		Type:       event.Type,
-		Data:       event.Data,
-		OccurredAt: occurredAt,
-		ReceivedAt: time.Now(),
-	}
-
 	var response *trackingModel.EventAcceptedResponse
 	create := func(ctx context.Context) error {
-		existing, err := s.events.GetEventById(ctx, event.ID)
-		switch {
-		case err == nil:
+		existing, found, err := s.lookupEvent(ctx, onboardingEvent, projectKey)
+		if err != nil {
+			return err
+		}
+		if found {
 			response = existing
 			return nil
-		case !errors.Is(err, sql.ErrNoRows):
-			return fmt.Errorf("get event %q: %w", event.ID, err)
 		}
 
 		created, err := s.events.RecordEvent(ctx, onboardingEvent)
 		if err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				existing, found, lookupErr := s.lookupEvent(ctx, onboardingEvent, projectKey)
+				if lookupErr != nil {
+					return lookupErr
+				}
+				if found {
+					response = existing
+					return nil
+				}
+				return ErrSessionNotActive
+			}
 			return fmt.Errorf("record event %q: %w", event.ID, err)
 		}
 		if status, completesSession := completionStatus(event.Type); completesSession {
@@ -167,20 +182,15 @@ func (s *TrackingService) CreateEvent(ctx context.Context, event *trackingModel.
 		return nil
 	}
 
-	existing, err := s.events.GetEventById(ctx, event.ID)
-	switch {
-	case err == nil:
-		return existing, nil
-	case !errors.Is(err, sql.ErrNoRows):
-		return nil, fmt.Errorf("get event %q: %w", event.ID, err)
-	}
-
 	err = s.transactor.WithTx(ctx, create)
 	if err != nil {
 		if isUniqueViolation(err) {
-			existing, lookupErr := s.events.GetEventById(ctx, event.ID)
-			if lookupErr == nil {
+			existing, found, lookupErr := s.lookupEvent(ctx, onboardingEvent, projectKey)
+			if lookupErr == nil && found {
 				return existing, nil
+			}
+			if errors.Is(lookupErr, sql.ErrNoRows) || lookupErr == nil {
+				return nil, ErrEventIDConflict
 			}
 			return nil, fmt.Errorf("get concurrently created event %q: %w", event.ID, lookupErr)
 		}
@@ -189,8 +199,27 @@ func (s *TrackingService) CreateEvent(ctx context.Context, event *trackingModel.
 	return response, nil
 }
 
+func (s *TrackingService) lookupEvent(
+	ctx context.Context, event *trackingModel.OnboardingEvent, projectKey string,
+) (*trackingModel.EventAcceptedResponse, bool, error) {
+	existing, matches, err := s.events.GetEventByIdAndProjectKey(ctx, event, projectKey)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, false, nil
+	}
+	if err != nil {
+		return nil, false, fmt.Errorf("get event %q: %w", event.ID, err)
+	}
+	if !matches {
+		return nil, true, ErrEventIDConflict
+	}
+	return existing, true, nil
+}
+
 func (s *TrackingService) validateProjectKey(ctx context.Context, scenarioId string) error {
-	projectKey := ctx.Value("projectKey").(string)
+	projectKey, err := projectKeyFromContext(ctx)
+	if err != nil {
+		return err
+	}
 	scenario, err := s.scenarios.GetScenarioByIdAndProjectKey(ctx, scenarioId, projectKey)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -203,6 +232,14 @@ func (s *TrackingService) validateProjectKey(ctx context.Context, scenarioId str
 		return invalid("scenario is not enabled")
 	}
 	return nil
+}
+
+func projectKeyFromContext(ctx context.Context) (string, error) {
+	projectKey, ok := ctx.Value("projectKey").(string)
+	if !ok || projectKey == "" {
+		return "", ErrProjectKeyInvalid
+	}
+	return projectKey, nil
 }
 
 func validateEvent(event *trackingModel.CreateEventRequest) (time.Time, error) {

@@ -6,13 +6,11 @@ package event
 
 import (
 	"context"
-
-	"github.com/google/uuid"
 )
 
 type Querier interface {
 	CreateEvent(ctx context.Context, arg CreateEventParams) (OnboardingEvent, error)
-	GetEventById(ctx context.Context, id uuid.UUID) (OnboardingEvent, error)
+	GetEventByIdAndProjectKey(ctx context.Context, arg GetEventByIdAndProjectKeyParams) (GetEventByIdAndProjectKeyRow, error)
 }
 
 var _ Querier = (*Queries)(nil)
