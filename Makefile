@@ -5,6 +5,9 @@
 	preview-up preview-stop \
 	logs ps
 
+lint:
+	cd backend && golangci-lint run ./...
+
 up:
 	docker compose up -d --build
 
