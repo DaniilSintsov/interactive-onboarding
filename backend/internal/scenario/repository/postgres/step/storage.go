@@ -163,7 +163,7 @@ func (repo *stepRepository) ListByScenarioID(
 			StepNum:      int(row.StepNum),
 			Title:        row.Title,
 			Description:  row.Description,
-			FrontendData: json.RawMessage(row.FrontendData),
+			FrontendData: row.FrontendData,
 			CreatedAt:    row.CreatedAt.Time.UTC(),
 			UpdatedAt:    row.UpdatedAt.Time.UTC(),
 		})
