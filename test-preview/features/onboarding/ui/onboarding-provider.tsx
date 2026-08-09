@@ -3,8 +3,8 @@
 import { createContext, use, useCallback, useEffect, useRef } from "react";
 import { usePathname } from "next/navigation";
 
-import { useDraftStore } from "@/features/listing/model/draft-store";
 import { consumeTestToken } from "@/features/onboarding/model/runtime-path";
+import { usePreviewUserStore } from "@/features/onboarding/model/preview-user-store";
 
 type OnboardingController = {
   start: (input: { userId: string; testToken?: string }) => Promise<void>;
@@ -30,7 +30,9 @@ export function OnboardingProvider({
   enabled: boolean;
 }) {
   const pathname = usePathname();
-  const demoUser = useDraftStore((state) => state.demoUser);
+  const userId = usePreviewUserStore((state) => state.userId);
+  const onboarded = usePreviewUserStore((state) => state.onboarded);
+  const setOnboarded = usePreviewUserStore((state) => state.setOnboarded);
   const controllerRef = useRef<OnboardingController | null>(null);
   const readyRef = useRef<Promise<OnboardingController | null> | null>(null);
   const testTokenRef = useRef<string | undefined>(undefined);
@@ -41,7 +43,7 @@ export function OnboardingProvider({
   }, [pathname]);
 
   useEffect(() => {
-    if (!enabled) return;
+    if (!enabled || !userId || (onboarded && !testTokenRef.current)) return;
 
     let cancelled = false;
     let instance: OnboardingController | null = null;
@@ -53,12 +55,13 @@ export function OnboardingProvider({
         const created = createOnboarding({
           projectKey: process.env.NEXT_PUBLIC_PROJECT_KEY ?? "pk_demo_avito",
           runtimeUrl: "/api/runtime",
+          onUserStateChange: (user) => setOnboarded(user.userId, user.onboarded),
         });
         instance = created;
         controllerRef.current = created;
         const testToken = testTokenRef.current;
         await created
-          .start({ userId: demoUser, testToken })
+          .start({ userId, testToken })
           .catch(() => undefined);
         if (testTokenRef.current === testToken) testTokenRef.current = undefined;
         return instance;
@@ -70,23 +73,23 @@ export function OnboardingProvider({
       instance?.destroy();
       if (controllerRef.current === instance) controllerRef.current = null;
     };
-  }, [demoUser, enabled]);
+  }, [enabled, onboarded, setOnboarded, userId]);
 
   useEffect(() => {
-    if (!enabled) return;
+    if (!enabled || !userId || (onboarded && !testTokenRef.current)) return;
 
     void readyRef.current
       ?.then(async (controller) => {
         if (!controller) return;
         const testToken = testTokenRef.current;
         try {
-          await controller.start({ userId: demoUser, testToken });
+          await controller.start({ userId, testToken });
         } finally {
           if (testTokenRef.current === testToken) testTokenRef.current = undefined;
         }
       })
       .catch(() => undefined);
-  }, [demoUser, enabled, pathname]);
+  }, [enabled, onboarded, pathname, userId]);
 
   const completeCurrentStep = useCallback(async () => {
     const controller = controllerRef.current ?? (await readyRef.current);

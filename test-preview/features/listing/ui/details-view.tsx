@@ -105,6 +105,8 @@ export function DetailsView() {
             <input
               id="listing-photo"
               data-onboarding-id="listing-photo"
+              data-onboarding-page="/add-item/details"
+              data-onboarding-label="Главная фотография"
               type="file"
               accept="image/png,image/jpeg,image/webp"
               aria-invalid={Boolean(errors.photoName)}
@@ -128,6 +130,8 @@ export function DetailsView() {
             <Input.TextArea
               id="listing-description"
               data-onboarding-id="listing-description"
+              data-onboarding-page="/add-item/details"
+              data-onboarding-label="Описание объявления"
               value={draft.description}
               status={errors.description ? "error" : undefined}
               onChange={(event) => {
@@ -169,6 +173,8 @@ export function DetailsView() {
               <Input
                 id="listing-price"
                 data-onboarding-id="listing-price"
+                data-onboarding-page="/add-item/details"
+                data-onboarding-label="Цена"
                 value={draft.price}
                 status={errors.price ? "error" : undefined}
                 inputMode="numeric"
@@ -236,6 +242,8 @@ export function DetailsView() {
               type="primary"
               size="large"
               data-onboarding-id="publish-listing"
+              data-onboarding-page="/add-item/details"
+              data-onboarding-label="Кнопка «Разместить»"
               onClick={publish}
             >
               Разместить

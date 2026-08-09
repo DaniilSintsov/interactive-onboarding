@@ -76,9 +76,10 @@ button { color: inherit; }
 .brand-mark i:nth-child(3) { bottom: 0; left: 1px; background: var(--mint); }
 .brand-mark i:nth-child(4) { right: 0; bottom: 0; background: var(--yellow); }
 
-.user-mode { display: flex; align-items: center; gap: 9px; }
-.user-mode > span { color: var(--muted); font-size: 12px; }
-.user-mode .ant-segmented { background: var(--soft); }
+.user-mode { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.user-id-label { color: var(--muted); font-size: 12px; }
+.user-mode code { max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.user-mode .ant-tag { margin: 0; }
 
 .header-search {
   display: grid;
@@ -308,13 +309,16 @@ button { color: inherit; }
 
 @media (max-width: 760px) {
   .site-header { padding: 10px 14px 12px; }
-  .header-topline { gap: 10px; }
-  .brand { font-size: 21px; }
+  .header-topline { flex-wrap: wrap; gap: 8px 10px; }
+  .brand { order: 1; font-size: 21px; }
   .brand-mark { width: 25px; height: 25px; }
   .brand-mark i { width: 11px; height: 11px; }
-  .user-mode > span { display: none; }
-  .user-mode .ant-segmented-item-label { min-height: 28px; padding-inline: 8px; font-size: 11px; line-height: 28px; }
-  .header-topline > .ant-btn { width: 42px; padding: 0; overflow: hidden; font-size: 0; }
+  .user-mode { order: 3; width: 100%; justify-content: center; }
+  .user-id-label { display: none; }
+  .user-mode code { max-width: 150px; }
+  .user-mode .ant-btn { width: 32px; padding-inline: 6px; overflow: hidden; font-size: 0; }
+  .user-mode .ant-btn::before { content: "↻"; font-size: 16px; }
+  .header-topline > .ant-btn { order: 2; width: 42px; padding: 0; overflow: hidden; font-size: 0; }
   .header-topline > .ant-btn::before { content: "+"; font-size: 22px; }
   .header-search { grid-template-columns: 44px minmax(0, 1fr); gap: 7px; margin-top: 9px; }
   .catalog-button { width: 44px; height: 44px; }

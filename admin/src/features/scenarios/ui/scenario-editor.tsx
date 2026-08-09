@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Alert,
@@ -15,10 +15,13 @@ import {
   Skeleton,
   Space,
 } from 'antd';
+import { parseOnboardingCatalogMetadata } from '@/features/elements/model/onboarding-catalog';
 import { adminApi } from '@/shared/api/admin-api';
 import type { Element, ScenarioInput, Step, StepInput } from '@/shared/api/types';
 import {
+  getStepCatalogWarnings,
   initialStepValues,
+  selectPagePath,
   toStepInput,
   type StepFormValues,
 } from '@/features/scenarios/model/step-form';
@@ -40,6 +43,27 @@ function StepModal({
 }) {
   const [form] = Form.useForm<StepFormValues>();
   const mode = Form.useWatch('mode', form);
+  const elementId = Form.useWatch('element_id', form);
+  const pagePath = Form.useWatch('page_path', form) ?? '';
+  const selectedElement = useMemo(
+    () => elements.find((element) => element.id === elementId) ?? null,
+    [elementId, elements],
+  );
+  const catalogMetadata = useMemo(
+    () => (selectedElement ? parseOnboardingCatalogMetadata(selectedElement.description) : null),
+    [selectedElement],
+  );
+  const pagePaths = catalogMetadata?.page_paths;
+  const warnings = getStepCatalogWarnings({
+    step,
+    isAvailable: Boolean(catalogMetadata && pagePaths && pagePaths.length > 0),
+    pagePaths,
+  });
+
+  useEffect(() => {
+    const nextPagePath = selectPagePath(pagePath, pagePaths);
+    if (nextPagePath !== pagePath) form.setFieldValue('page_path', nextPagePath);
+  }, [form, pagePath, pagePaths]);
 
   return (
     <Modal
@@ -60,28 +84,67 @@ function StepModal({
         initialValues={initialStepValues(step)}
         onFinish={(values) => onSave(toStepInput(values))}
       >
+        {warnings.length > 0 ? (
+          <Alert
+            style={{ marginBottom: 16 }}
+            type="warning"
+            showIcon
+            message="Проверьте шаг перед сохранением"
+            description={
+              <div>
+                {warnings.map((warning) => (
+                  <div key={warning}>{warning}</div>
+                ))}
+              </div>
+            }
+          />
+        ) : null}
         <Form.Item label="Элемент интерфейса" name="element_id" rules={[{ required: true, message: 'Выберите элемент' }]}>
           <Select
             showSearch
             optionFilterProp="label"
             placeholder="Выберите data-onboarding-id"
-            options={elements.map((element) => ({
-              value: element.id,
-              label: `${element.label} · ${element.key}`,
-            }))}
+            options={elements.map((element) => {
+              const available = Boolean(parseOnboardingCatalogMetadata(element.description)?.page_paths.length);
+              return {
+                value: element.id,
+                label: `${element.label} · ${element.key}${available ? '' : ' · недоступен'}`,
+                disabled: !available && element.id !== step?.element_id,
+              };
+            })}
           />
         </Form.Item>
-        <Form.Item
-          label="Маршрут"
-          name="page_path"
-          rules={[
-            { required: true, whitespace: true, message: 'Укажите маршрут' },
-            { pattern: /^\//, message: 'Маршрут начинается с /' },
-            { max: 2048 },
-          ]}
-        >
-          <Input placeholder="/add-item/details" />
-        </Form.Item>
+        {pagePaths && pagePaths.length > 0 ? (
+          <Form.Item
+            label="Маршрут"
+            name="page_path"
+            rules={[
+              { required: true, whitespace: true, message: 'Выберите маршрут' },
+              { pattern: /^\//, message: 'Маршрут начинается с /' },
+              { max: 2048 },
+            ]}
+          >
+            <Select
+              placeholder="Выберите маршрут из каталога"
+              options={pagePaths.map((catalogPagePath) => ({
+                value: catalogPagePath,
+                label: catalogPagePath,
+              }))}
+            />
+          </Form.Item>
+        ) : (
+          <Form.Item
+            label="Маршрут"
+            name="page_path"
+            rules={[
+              { required: true, whitespace: true, message: 'Укажите маршрут' },
+              { pattern: /^\//, message: 'Маршрут начинается с /' },
+              { max: 2048 },
+            ]}
+          >
+            <Input placeholder="/add-item/details" />
+          </Form.Item>
+        )}
         <div className="toolbar">
           <Form.Item label="Переход" name="mode" style={{ flex: 1, minWidth: 220 }}>
             <Select
@@ -126,7 +189,17 @@ export function ScenarioEditor({ projectId, scenarioId }: { projectId: string; s
     queryFn: () => adminApi.listElements(projectId),
   });
   const elementNames = useMemo(
-    () => new Map((elements.data ?? []).map((element) => [element.id, element.label] as const)),
+    () =>
+      new Map(
+        (elements.data ?? []).map((element) => [
+          element.id,
+          element.label,
+        ] as const),
+      ),
+    [elements.data],
+  );
+  const availableElementCount = useMemo(
+    () => (elements.data ?? []).filter((element) => parseOnboardingCatalogMetadata(element.description)?.page_paths.length).length,
     [elements.data],
   );
 
@@ -311,7 +384,7 @@ export function ScenarioEditor({ projectId, scenarioId }: { projectId: string; s
             <span className="toolbar-spacer" />
             <Button
               type="primary"
-              disabled={!editable || elements.data.length === 0}
+              disabled={!editable || availableElementCount === 0}
               onClick={() => setEditingStep(null)}
             >
               + Добавить шаг
@@ -321,8 +394,18 @@ export function ScenarioEditor({ projectId, scenarioId }: { projectId: string; s
             <Alert
               type="warning"
               showIcon
-              message="Сначала добавьте элемент интерфейса"
-              action={<Button href={`/projects/${projectId}?tab=elements`} size="small">К элементам</Button>}
+              message="Элементы проекта ещё не синхронизированы"
+              description="После CI sync здесь появятся ключи из CI-каталога."
+              action={<Button href={`/projects/${projectId}?tab=elements`} size="small">К inventory</Button>}
+            />
+          ) : null}
+          {elements.data.length > 0 && availableElementCount === 0 ? (
+            <Alert
+              style={{ marginBottom: 16 }}
+              type="warning"
+              showIcon
+              message="Для новых шагов нет доступных элементов"
+              description="Все элементы проекта отсутствуют в CI-каталоге. Проверьте вкладку inventory и CI sync."
             />
           ) : null}
           {orderedSteps.length === 0 && elements.data.length > 0 ? (

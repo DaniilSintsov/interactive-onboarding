@@ -17,6 +17,7 @@ export type {
   CreateOnboardingOptions,
   FrontendStepData,
   Onboarding,
+  OnboardingUserState,
   StartOptions,
 } from "./types.js";
 
@@ -103,6 +104,7 @@ function parseProgress(value: unknown, projectKey: string): Progress | null {
 export function createOnboarding(options: CreateOnboardingOptions): Onboarding {
   const projectKey = assertOption(options.projectKey, "projectKey");
   const runtimeUrl = assertOption(options.runtimeUrl, "runtimeUrl").replace(/\/+$/, "");
+  const onUserStateChange = options.onUserStateChange;
   const storageKey = `@interactive-onboarding/sdk:v2:${projectKey}`;
 
   let progress: Progress | null = null;
@@ -505,6 +507,7 @@ export function createOnboarding(options: CreateOnboardingOptions): Onboarding {
       progress = null;
       removeProgress();
       await finished;
+      if (!state.isTest) onUserStateChange?.({ userId: state.userId, onboarded: true });
     } else {
       progress = { ...state, stepIndex: state.stepIndex + 1 };
       writeProgress();

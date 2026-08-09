@@ -17,3 +17,4 @@ CONTEXT.md
 /output/
 /tmp/
 .codegraph/
+.reports/

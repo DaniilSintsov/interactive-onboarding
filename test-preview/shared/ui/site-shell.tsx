@@ -1,15 +1,16 @@
 "use client";
 
 import { useState } from "react";
-import { Button, Segmented } from "antd";
+import { Button, Tag } from "antd";
 
 import { useListingFlow } from "@/features/listing/controller/use-listing-flow";
-import { type DemoUser, useDraftStore } from "@/features/listing/model/draft-store";
+import { usePreviewUserStore } from "@/features/onboarding/model/preview-user-store";
 
 export function SiteShell({ children }: { children: React.ReactNode }) {
   const [search, setSearch] = useState("");
-  const demoUser = useDraftStore((state) => state.demoUser);
-  const setDemoUser = useDraftStore((state) => state.setDemoUser);
+  const userId = usePreviewUserStore((state) => state.userId);
+  const onboarded = usePreviewUserStore((state) => state.onboarded);
+  const regenerateUser = usePreviewUserStore((state) => state.regenerateUser);
   const { go, startOver } = useListingFlow();
 
   return (
@@ -27,16 +28,17 @@ export function SiteShell({ children }: { children: React.ReactNode }) {
           </button>
 
           <div className="user-mode">
-            <span>Режим</span>
-            <Segmented<DemoUser>
-              value={demoUser}
-              onChange={setDemoUser}
-              options={[
-                { value: "demo-novice", label: "Новичок" },
-                { value: "demo-expert", label: "Опытный" },
-              ]}
-              aria-label="Тип демо-пользователя"
-            />
+            <span className="user-id-label">user_id</span>
+            <code title={userId}>{userId || "—"}</code>
+            <Tag
+              color={onboarded ? "green" : "blue"}
+              aria-live="polite"
+            >
+              {onboarded ? "Опытный" : "Новичок"}
+            </Tag>
+            <Button size="small" onClick={regenerateUser} aria-label="Сгенерировать новый user_id">
+              Новый ID
+            </Button>
           </div>
 
           <Button type="primary" onClick={startOver}>

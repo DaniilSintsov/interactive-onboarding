@@ -29,6 +29,11 @@ export type RuntimeScenario = {
   steps: RuntimeStep[];
 };
 
+export type OnboardingUserState = {
+  userId: string;
+  onboarded: boolean;
+};
+
 export type RuntimeScenarioResolveResponse = {
   is_test: boolean;
   scenarios: RuntimeScenario[];
@@ -44,6 +49,7 @@ export type EventType =
 export type CreateOnboardingOptions = {
   projectKey: string;
   runtimeUrl: string;
+  onUserStateChange?: (user: OnboardingUserState) => void;
 };
 
 export type StartOptions = {

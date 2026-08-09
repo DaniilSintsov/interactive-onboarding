@@ -57,6 +57,8 @@ export function TitleView() {
         <Input
           id="listing-title"
           data-onboarding-id="listing-title"
+          data-onboarding-page="/add-item/title"
+          data-onboarding-label="Название объявления"
           value={title}
           status={error ? "error" : undefined}
           onChange={(event) => {
@@ -89,6 +91,8 @@ export function TitleView() {
               <button
                 className={subcategory === item ? "subcategory-row is-selected" : "subcategory-row"}
                 data-onboarding-id={item === "Электронные книги" ? "subcategory-ebooks" : undefined}
+                data-onboarding-page="/add-item/title"
+                data-onboarding-label="Подкатегория «Электронные книги»"
                 key={item}
                 onClick={() => selectSubcategory(item)}
                 type="button"
