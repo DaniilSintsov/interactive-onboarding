@@ -121,7 +121,7 @@ func (s *TrackingService) CreateEvent(ctx context.Context, event *trackingModel.
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrSessionNotFound
 		}
-		return nil, ErrInvalidRequest
+		return nil, err
 	}
 	if session.Status != trackingModel.SessionStatusActive {
 		return nil, ErrSessionNotActive
