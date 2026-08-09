@@ -15,13 +15,12 @@ MVP платформы интерактивного онбординга для 
 
 ### Backend (Go + PostgreSQL + Docker)
 
-- Управление проектами и элементами интерфейса
-- Управление сценариями и шагами (статусы: in_development → enabled → disabled)
-- Runtime API — поиск подходящего сценария для SDK
+- Project — управление проектами и элементами интерфейса
+- Scenario — управление сценариями и шагами
+- Runtime — поиск подходящего сценария для SDK
 - Tracking — создание сессий и приём событий
-- Аналитика — completion_rate, skip_rate, drop_off_rate, среднее время
-- PDF-отчёт по сценарию
-- Мягкое удаление (soft delete) — история сохраняется
+- Аналитика — получение аналитики по различным параметрам
+- PDF_report — генерация pdf отчета с аналитикой
 - OpenAPI 3.0.3
 
 ### Frontend (React + TypeScript)
@@ -44,13 +43,13 @@ MVP платформы интерактивного онбординга для 
 
 | Компонент | Технологии |
 |-----------|------------|
-| Backend | Go 1.23+, PostgreSQL 18, Docker, Goose, gofpdf/v2 |
+| Backend | Go 1.23+, PostgreSQL 18, Goose, sqcl, gofpdf/v2 |
 | Frontend | React 18+, TypeScript, Vite, Material-UI |
 | SDK | TypeScript, встраиваемый виджет |
 | API | OpenAPI 3.0.3, REST |
-| Деплой | Docker Compose |
+| Деплой | Docker Compose | Docker |
 | Линтер | golangci-lint |
-| Тесты | go test |
+| Тесты | go test, Jest |
 
 ---
 
