@@ -23,51 +23,51 @@ services:
       db:
         condition: service_healthy
 
-#  test-preview:
-#    build:
-#      context: .
-#      dockerfile: Dockerfile.frontend
-#      target: test-preview
-#      args:
-#        NEXT_PUBLIC_PROJECT_KEY: ${NEXT_PUBLIC_PROJECT_KEY:-pk_demo_avito}
-#        NEXT_PUBLIC_PREVIEW_URL: ${NEXT_PUBLIC_PREVIEW_URL:-http://localhost:3000}
-#    environment:
-#      BACKEND_URL: http://onboarding-backend:8080
-#    ports:
-#      - "${PREVIEW_PORT:-3000}:3000"
-#    depends_on:
-#      - onboarding-backend
-#    restart: unless-stopped
-#    healthcheck:
-#      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:3000/"]
-#      interval: 10s
-#      timeout: 5s
-#      retries: 5
-#      start_period: 10s
-#
-#  admin:
-#    build:
-#      context: .
-#      dockerfile: Dockerfile.frontend
-#      target: admin
-#      args:
-#        NEXT_PUBLIC_PROJECT_KEY: ${NEXT_PUBLIC_PROJECT_KEY:-pk_demo_avito}
-#        NEXT_PUBLIC_PREVIEW_URL: ${NEXT_PUBLIC_PREVIEW_URL:-http://localhost:3000}
-#    environment:
-#      ADMIN_API_URL: http://onboarding-backend:8080
-#      ADMIN_PASSWORD_HASH: ${ADMIN_PASSWORD_HASH:?ADMIN_PASSWORD_HASH is required}
-#      SESSION_SECRET: ${SESSION_SECRET:?SESSION_SECRET is required}
-#    ports:
-#      - "${ADMIN_PORT:-3001}:3000"
-#    depends_on:
-#      - onboarding-backend
-#    restart: unless-stopped
-#    healthcheck:
-#      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:3000/login"]
-#      interval: 10s
-#      timeout: 5s
-#      retries: 5
-#      start_period: 10s
+  test-preview:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+      target: test-preview
+      args:
+        NEXT_PUBLIC_PROJECT_KEY: ${NEXT_PUBLIC_PROJECT_KEY:-pk_demo_avito}
+        NEXT_PUBLIC_PREVIEW_URL: ${NEXT_PUBLIC_PREVIEW_URL:-http://localhost:3000}
+    environment:
+      BACKEND_URL: http://onboarding-backend:8080
+    ports:
+      - "${PREVIEW_PORT:-3000}:3000"
+    depends_on:
+      - onboarding-backend
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:3000/"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  admin:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+      target: admin
+      args:
+        NEXT_PUBLIC_PROJECT_KEY: ${NEXT_PUBLIC_PROJECT_KEY:-pk_demo_avito}
+        NEXT_PUBLIC_PREVIEW_URL: ${NEXT_PUBLIC_PREVIEW_URL:-http://localhost:3000}
+    environment:
+      ADMIN_API_URL: http://onboarding-backend:8080
+      ADMIN_PASSWORD_HASH: ${ADMIN_PASSWORD_HASH:?ADMIN_PASSWORD_HASH is required}
+      SESSION_SECRET: ${SESSION_SECRET:?SESSION_SECRET is required}
+    ports:
+      - "${ADMIN_PORT:-3001}:3000"
+    depends_on:
+      - onboarding-backend
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:3000/login"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
 
   db:
     image: postgres:18
