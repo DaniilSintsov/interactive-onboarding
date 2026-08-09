@@ -326,6 +326,8 @@ paths:
           $ref: '#/components/responses/NotFound'
         '422':
           $ref: '#/components/responses/ValidationError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
       description: Создаёт сценарий в статусе in_development.
     get:
       tags:
@@ -349,10 +351,14 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ScenarioListResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '404':
           $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
       description: Возвращает сценарии проекта с фильтрацией по статусу и пагинацией.
   /api/v1/scenarios/{scenarioId}:
     parameters:
@@ -371,10 +377,14 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ScenarioWithSteps'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '404':
           $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
       description: Возвращает сценарий вместе с упорядоченным списком шагов.
     patch:
       tags:
@@ -408,6 +418,8 @@ paths:
           $ref: '#/components/responses/Conflict'
         '422':
           $ref: '#/components/responses/ValidationError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
     delete:
       tags:
         - Scenarios
@@ -418,12 +430,14 @@ paths:
       responses:
         '204':
           description: Сценарий мягко удалён
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '404':
           $ref: '#/components/responses/NotFound'
-        '409':
-          $ref: '#/components/responses/Conflict'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
       description: Мягко удаляет сценарий в любом статусе. Удалённый сценарий перестаёт возвращаться в списках и Runtime,
         но исторические сессии, события и аналитика сохраняются.
   /api/v1/scenarios/{scenarioId}/publish:
@@ -444,14 +458,16 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Scenario'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '404':
           $ref: '#/components/responses/NotFound'
         '409':
           $ref: '#/components/responses/Conflict'
-        '422':
-          $ref: '#/components/responses/ValidationError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
   /api/v1/scenarios/{scenarioId}/enable:
     parameters:
       - $ref: '#/components/parameters/ScenarioId'
@@ -469,14 +485,16 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Scenario'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '404':
           $ref: '#/components/responses/NotFound'
         '409':
           $ref: '#/components/responses/Conflict'
-        '422':
-          $ref: '#/components/responses/ValidationError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
       description: Переводит сценарий из disabled в enabled.
   /api/v1/scenarios/{scenarioId}/disable:
     parameters:
@@ -495,12 +513,16 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Scenario'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '404':
           $ref: '#/components/responses/NotFound'
         '409':
           $ref: '#/components/responses/Conflict'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
       description: Переводит сценарий из enabled в disabled. После выключения сценарий не выдаётся Runtime и может быть
         отредактирован.
   /api/v1/scenarios/{scenarioId}/test-tokens:
@@ -524,12 +546,14 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ScenarioTestTokenResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '404':
           $ref: '#/components/responses/NotFound'
-        '422':
-          $ref: '#/components/responses/ValidationError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
 
   # ============================================================================
   # Steps
@@ -567,6 +591,8 @@ paths:
           $ref: '#/components/responses/Conflict'
         '422':
           $ref: '#/components/responses/ValidationError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
       description: Создание разрешено для сценариев в статусах in_development и disabled.
   /api/v1/scenarios/{scenarioId}/steps/{stepId}:
     parameters:
@@ -602,6 +628,8 @@ paths:
           $ref: '#/components/responses/Conflict'
         '422':
           $ref: '#/components/responses/ValidationError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
       description: Изменение разрешено для сценариев в статусах in_development и disabled.
     delete:
       tags:
@@ -613,12 +641,16 @@ paths:
       responses:
         '204':
           description: Шаг мягко удалён
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '404':
           $ref: '#/components/responses/NotFound'
         '409':
           $ref: '#/components/responses/Conflict'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
       description: Мягко удаляет шаг сценария. Операция разрешена для сценариев в статусах in_development и disabled.
         Удалённый шаг исключается из конфигурации сценария, предпросмотра и Runtime, но связанные исторические события
         сохраняются.
@@ -657,6 +689,8 @@ paths:
           $ref: '#/components/responses/Conflict'
         '422':
           $ref: '#/components/responses/ValidationError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
       description: Полностью заменяет порядок шагов. Операция разрешена для сценариев в статусах in_development и disabled.
 
   # ============================================================================

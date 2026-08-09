@@ -75,13 +75,17 @@ func mapError(err error) httpserver.ErrorMapping {
 	case errors.Is(err, scenarioerrs.ErrScenarioPagePatternTooLong):
 		return httpserver.NewValidationErrorMapping("scenario_page_pattern_too_long", "scenario page pattern is too long", "page_pattern")
 	case errors.Is(err, scenarioerrs.ErrScenarioStatusUnknown):
-		return httpserver.NewValidationErrorMapping("unknown_scenario_status", "unknown scenario status", "status")
+		return httpserver.NewErrorMapping(
+			http.StatusBadRequest,
+			"invalid_status",
+			"status must be one of: in_development, enabled, disabled",
+			false,
+		)
 	case errors.Is(err, scenarioerrs.ErrScenarioTestTokenScenarioIDRequired):
 		return httpserver.NewErrorMapping(http.StatusBadRequest, "invalid_scenario_id", "scenario ID is required", false)
-	case errors.Is(err, scenarioerrs.ErrScenarioTestTokenHashInvalid):
-		return httpserver.NewValidationErrorMapping("invalid_test_token_hash", "test token hash is invalid", "token")
-	case errors.Is(err, scenarioerrs.ErrScenarioTestTokenExpirationInvalid):
-		return httpserver.NewValidationErrorMapping("invalid_test_token_expiration", "test token expiration is invalid", "expires_at")
+	case errors.Is(err, scenarioerrs.ErrScenarioTestTokenHashInvalid),
+		errors.Is(err, scenarioerrs.ErrScenarioTestTokenExpirationInvalid):
+		return httpserver.InternalErrorMapping()
 	default:
 		return httpserver.InternalErrorMapping()
 	}
