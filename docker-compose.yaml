@@ -22,6 +22,30 @@ services:
     depends_on:
       db:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/api/v1/projects?limit=1"]
+      interval: 2s
+      timeout: 3s
+      retries: 15
+      start_period: 5s
+
+  onboarding-sync:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+      target: onboarding-sync
+    command:
+      - npm
+      - run
+      - onboarding:sync
+      - --
+      - --backend-url=http://onboarding-backend:8080
+      - --project-key=${NEXT_PUBLIC_PROJECT_KEY:-pk_demo_avito}
+      - --revision=${CI_COMMIT_SHA:-local}
+    depends_on:
+      onboarding-backend:
+        condition: service_healthy
+    restart: "no"
 
   test-preview:
     build:
@@ -36,7 +60,10 @@ services:
     ports:
       - "${PREVIEW_PORT:-3000}:3000"
     depends_on:
-      - onboarding-backend
+      onboarding-backend:
+        condition: service_healthy
+      onboarding-sync:
+        condition: service_completed_successfully
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:3000/"]
@@ -60,7 +87,8 @@ services:
     ports:
       - "${ADMIN_PORT:-3001}:3000"
     depends_on:
-      - onboarding-backend
+      onboarding-backend:
+        condition: service_healthy
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:3000/login"]

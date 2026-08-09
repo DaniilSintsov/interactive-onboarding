@@ -42,6 +42,8 @@ export function CategoryView() {
           <button
             className={selected === name ? "choice-row is-selected" : "choice-row"}
             data-onboarding-id={name === "Хобби и отдых" ? "category-hobby" : undefined}
+            data-onboarding-page="/add-item/category"
+            data-onboarding-label="Категория «Хобби и отдых»"
             key={name}
             onClick={() => selectCategory(name)}
             type="button"

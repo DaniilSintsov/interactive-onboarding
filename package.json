@@ -13,6 +13,8 @@
     "dev:preview": "node test-support/dev-preview.mjs",
     "lint": "npm run lint --workspaces --if-present",
     "mock-api": "node test-support/mock-api.mjs",
+    "onboarding:sync": "node test-support/onboarding-sync.mjs",
+    "onboarding:sync:test": "node test-support/onboarding-sync.mjs --self-test",
     "test": "npm run test --workspaces --if-present",
     "typecheck": "npm run build -w @interactive-onboarding/sdk && npm run typecheck --workspaces --if-present"
   }
