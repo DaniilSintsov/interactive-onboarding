@@ -3,53 +3,30 @@ package event
 import (
 	"context"
 
+	"github.com/DaniilSintsov/interactive-onboarding/backend/internal/platform/postgres/transactor"
 	trackingModel "github.com/DaniilSintsov/interactive-onboarding/backend/internal/tracking/model"
 	event "github.com/DaniilSintsov/interactive-onboarding/backend/internal/tracking/repository/event/sqlc"
-	sessionRepository "github.com/DaniilSintsov/interactive-onboarding/backend/internal/tracking/repository/session"
-	trackingService "github.com/DaniilSintsov/interactive-onboarding/backend/internal/tracking/service"
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type EventRepository struct {
-	conn    *pgx.Conn
 	queries *event.Queries
 }
 
-func NewEventRepository(db *pgx.Conn) *EventRepository {
-	q := event.New(db)
+func NewEventRepository(db *pgxpool.Pool) *EventRepository {
 	return &EventRepository{
-		conn:    db,
-		queries: q,
+		queries: event.New(db),
 	}
 }
 
-func (e *EventRepository) WithinTransaction(
-	ctx context.Context,
-	fn func(trackingService.SessionRepository, trackingService.EventRepository) error,
-) (err error) {
-	tx, err := e.conn.Begin(ctx)
-	if err != nil {
-		return err
+func (e *EventRepository) getQueries(ctx context.Context) *event.Queries {
+	if tx, err := transactor.ExtractTx(ctx); err == nil {
+		return e.queries.WithTx(tx)
 	}
-	committed := false
-	defer func() {
-		if !committed {
-			_ = tx.Rollback(ctx)
-		}
-	}()
 
-	txEvents := &EventRepository{queries: e.queries.WithTx(tx)}
-	txSessions := sessionRepository.NewSessionRepository(tx)
-	if err = fn(txSessions, txEvents); err != nil {
-		return err
-	}
-	if err = tx.Commit(ctx); err != nil {
-		return err
-	}
-	committed = true
-	return nil
+	return e.queries
 }
 
 func (e *EventRepository) RecordEvent(
@@ -84,7 +61,7 @@ func (e *EventRepository) RecordEvent(
 		ReceivedAt: pgtype.Timestamptz{Time: onboarding.ReceivedAt, Valid: true},
 	}
 
-	createdEvent, err := e.queries.CreateEvent(ctx, createEvent)
+	createdEvent, err := e.getQueries(ctx).CreateEvent(ctx, createEvent)
 	if err != nil {
 		return nil, err
 	}
@@ -92,20 +69,49 @@ func (e *EventRepository) RecordEvent(
 	return adaptEvent(createdEvent, false), nil
 }
 
-func (e *EventRepository) GetEventById(
-	ctx context.Context, eventID string,
-) (*trackingModel.EventAcceptedResponse, error) {
-	parsedEventID, err := uuid.Parse(eventID)
+func (e *EventRepository) GetEventByIdAndProjectKey(
+	ctx context.Context, requested *trackingModel.OnboardingEvent, projectKey string,
+) (*trackingModel.EventAcceptedResponse, bool, error) {
+	parsedEventID, err := uuid.Parse(requested.ID)
 	if err != nil {
-		return nil, err
+		return nil, false, err
+	}
+	parsedSessionID, err := uuid.Parse(requested.SessionID)
+	if err != nil {
+		return nil, false, err
 	}
 
-	found, err := e.queries.GetEventById(ctx, parsedEventID)
-	if err != nil {
-		return nil, err
+	var stepID pgtype.UUID
+	if requested.StepID != nil {
+		parsedStepID, err := uuid.Parse(*requested.StepID)
+		if err != nil {
+			return nil, false, err
+		}
+		stepID = pgtype.UUID{Bytes: parsedStepID, Valid: true}
 	}
 
-	return adaptEvent(found, true), nil
+	found, err := e.getQueries(ctx).GetEventByIdAndProjectKey(ctx, event.GetEventByIdAndProjectKeyParams{
+		SessionID:  parsedSessionID,
+		StepID:     stepID,
+		Type:       string(requested.Type),
+		Data:       requested.Data,
+		OccurredAt: pgtype.Timestamptz{Time: requested.OccurredAt, Valid: true},
+		EventID:    parsedEventID,
+		ProjectKey: projectKey,
+	})
+	if err != nil {
+		return nil, false, err
+	}
+
+	return adaptEvent(event.OnboardingEvent{
+		ID:         found.ID,
+		SessionID:  found.SessionID,
+		StepID:     found.StepID,
+		Type:       found.Type,
+		Data:       found.Data,
+		OccurredAt: found.OccurredAt,
+		ReceivedAt: found.ReceivedAt,
+	}, true), found.RequestMatches.Bool, nil
 }
 
 func adaptEvent(source event.OnboardingEvent, duplicate bool) *trackingModel.EventAcceptedResponse {

@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/DaniilSintsov/interactive-onboarding/backend/internal/platform/postgres/transactor"
 	trackingModel "github.com/DaniilSintsov/interactive-onboarding/backend/internal/tracking/model"
 	stepSQLC "github.com/DaniilSintsov/interactive-onboarding/backend/internal/tracking/repository/step/sqlc"
 	trackingService "github.com/DaniilSintsov/interactive-onboarding/backend/internal/tracking/service"
@@ -21,13 +22,20 @@ func NewStepRepository(db stepSQLC.DBTX) *StepRepository {
 	return &StepRepository{queries: stepSQLC.New(db)}
 }
 
+func (r *StepRepository) getQueries(ctx context.Context) *stepSQLC.Queries {
+	if tx, err := transactor.ExtractTx(ctx); err == nil {
+		return r.queries.WithTx(tx)
+	}
+	return r.queries
+}
+
 func (r *StepRepository) GetStepById(ctx context.Context, stepID string) (*trackingModel.Step, error) {
 	id, err := uuid.Parse(stepID)
 	if err != nil {
 		return nil, err
 	}
 
-	found, err := r.queries.GetStepById(ctx, id)
+	found, err := r.getQueries(ctx).GetStepById(ctx, id)
 	if err != nil {
 		return nil, err
 	}

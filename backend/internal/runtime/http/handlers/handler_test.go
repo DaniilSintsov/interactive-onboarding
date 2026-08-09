@@ -138,7 +138,7 @@ func TestGetScenarioReturnsEmptyScenarioListForNilResponse(t *testing.T) {
 
 func TestGetScenarioMapsTokenErrorsToForbidden(t *testing.T) {
 	tests := []error{
-		runtimeService.ErrTokenIsExpired,
+		runtimeService.ErrTestTokenInvalid,
 		runtimeService.ErrProjectTokenIsNotValid,
 	}
 
@@ -152,6 +152,15 @@ func TestGetScenarioMapsTokenErrorsToForbidden(t *testing.T) {
 			assertErrorResponse(t, response, http.StatusForbidden, "forbidden")
 		})
 	}
+}
+
+func TestGetScenarioMapsPageMismatchToUnprocessableEntity(t *testing.T) {
+	response := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/sdk/scenarios/resolve", strings.NewReader(`{"page":"/home","user_id":"user-1"}`))
+
+	NewHandler(&runtimeServiceMock{err: runtimeService.ErrPageMismatch}).GetScenario(response, req)
+
+	assertErrorResponse(t, response, http.StatusUnprocessableEntity, "unprocessable contend")
 }
 
 func TestGetScenarioMapsUnexpectedServiceErrorsToInternalServerError(t *testing.T) {
