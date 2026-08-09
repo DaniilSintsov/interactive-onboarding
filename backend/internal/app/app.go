@@ -9,11 +9,7 @@ import (
 	"syscall"
 	"time"
 
-	analyticshttp "github.com/DaniilSintsov/interactive-onboarding/backend/internal/analytics/http"
-	analyticsrepository "github.com/DaniilSintsov/interactive-onboarding/backend/internal/analytics/repository"
-	analyticsservice "github.com/DaniilSintsov/interactive-onboarding/backend/internal/analytics/service"
 	"github.com/DaniilSintsov/interactive-onboarding/backend/internal/config"
-	pdfhttp "github.com/DaniilSintsov/interactive-onboarding/backend/internal/pdf_report/http"
 	"github.com/DaniilSintsov/interactive-onboarding/backend/internal/platform/httpserver"
 	platformmiddleware "github.com/DaniilSintsov/interactive-onboarding/backend/internal/platform/middleware"
 	"github.com/DaniilSintsov/interactive-onboarding/backend/internal/platform/postgres"
@@ -97,7 +93,7 @@ func Run(logger *zap.Logger, cfg *config.Config) error {
 	trackingScenarioRepository := trackingscenario.NewScenarioRepository(dbPool)
 	trackingStepRepository := trackingstep.NewStepRepository(dbPool)
 
-	analyticsRepository := analyticsrepository.NewAnalyticsRepository(dbPool)
+	//analyticsRepository := analyticsrepository.NewAnalyticsRepository(dbPool)
 
 	keyGenerator := keygen.NewGenerator()
 	testToken := testtoken.NewService()
@@ -158,7 +154,7 @@ func Run(logger *zap.Logger, cfg *config.Config) error {
 		trackingStepRepository,
 	)
 
-	analyticsService := analyticsservice.NewAnalyticsService(analyticsRepository)
+	//analyticsService := analyticsservice.NewAnalyticsService(analyticsRepository)
 
 	projectHandler := projecthttp.NewHandler(
 		elementService,
@@ -175,8 +171,8 @@ func Run(logger *zap.Logger, cfg *config.Config) error {
 
 	runtimeHandler := runtimehttp.NewHandler(runtimeService)
 	trackingHandler := trackinghttp.NewTrackingHandler(trackingService)
-	analyticsHandler := analyticshttp.NewAnalyticsHandler(analyticsService)
-	pdfHandler := pdfhttp.NewPDFHandler(analyticsService)
+	//analyticsHandler := analyticshttp.NewAnalyticsHandler(analyticsService)
+	//pdfHandler := pdfhttp.NewPDFHandler(analyticsService)
 
 	server := httpserver.NewServer(
 		cfg.HTTPConfig,
@@ -188,8 +184,8 @@ func Run(logger *zap.Logger, cfg *config.Config) error {
 		[]httpserver.Middleware{},
 		projectHandler,
 		scenarioHandler,
-		analyticsHandler,
-		pdfHandler,
+		//analyticsHandler,
+		//pdfHandler,
 	)
 
 	server.RegisterRouteGroup(
