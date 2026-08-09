@@ -8,6 +8,7 @@ import { ConfigProvider } from "antd";
 
 import { OnboardingProvider } from "@/features/onboarding/ui/onboarding-provider";
 import { useDraftStore } from "@/features/listing/model/draft-store";
+import { usePreviewUserStore } from "@/features/onboarding/model/preview-user-store";
 
 export function Providers({ children }: { children: React.ReactNode }) {
   const [hydrated, setHydrated] = useState(false);
@@ -22,7 +23,11 @@ export function Providers({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     let active = true;
-    void Promise.resolve(useDraftStore.persist.rehydrate()).then(() => {
+    void Promise.all([
+      useDraftStore.persist.rehydrate(),
+      usePreviewUserStore.persist.rehydrate(),
+    ]).then(() => {
+      usePreviewUserStore.getState().ensureUser();
       if (active) setHydrated(true);
     });
     return () => {

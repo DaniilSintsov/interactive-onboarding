@@ -114,10 +114,16 @@ createServer(async (request, response) => {
     } else if (testToken && (!tokenExpiresAt || tokenExpiresAt <= Date.now())) {
       send(response, 403, { code: "forbidden", message: "invalid test or project token" });
     } else {
-      const scenarios = body.page === scenario.page_pattern && (testToken || body.user_id !== "demo-expert")
+      const onboarded = sessions.some((session) =>
+        session.user_id === body.user_id && session.status === "completed"
+      );
+      const scenarios = body.page === scenario.page_pattern && (testToken || !onboarded)
         ? [runtimeScenario()]
         : [];
-      send(response, 200, { is_test: Boolean(testToken), scenarios });
+      send(response, 200, {
+        is_test: Boolean(testToken),
+        scenarios,
+      });
     }
     return;
   }
@@ -138,6 +144,10 @@ createServer(async (request, response) => {
     const body = await readJson(request);
     const event = { ...body, received_at: new Date().toISOString() };
     events.push(event);
+    if (event.type === "onboarding_completed") {
+      const session = sessions.find(({ id }) => id === event.session_id);
+      if (session) session.status = "completed";
+    }
     send(response, 202, { event, duplicate: false });
     return;
   }

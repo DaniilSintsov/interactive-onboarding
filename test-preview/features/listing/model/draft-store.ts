@@ -3,7 +3,6 @@
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 
-export type DemoUser = "demo-novice" | "demo-expert";
 export type ContactMethod = "calls-and-messages" | "calls" | "messages";
 
 export type ListingDraft = {
@@ -39,8 +38,6 @@ export const initialDraft: ListingDraft = {
 };
 
 type DraftStore = ListingDraft & {
-  demoUser: DemoUser;
-  setDemoUser: (demoUser: DemoUser) => void;
   setField: <K extends keyof ListingDraft>(field: K, value: ListingDraft[K]) => void;
   resetDraft: () => void;
 };
@@ -49,8 +46,6 @@ export const useDraftStore = create<DraftStore>()(
   persist(
     (set) => ({
       ...initialDraft,
-      demoUser: "demo-novice",
-      setDemoUser: (demoUser) => set({ demoUser }),
       setField: (field, value) => set({ [field]: value }),
       resetDraft: () => set(initialDraft),
     }),
@@ -72,7 +67,6 @@ export const useDraftStore = create<DraftStore>()(
         phone,
         contactMethod,
         callDevice,
-        demoUser,
       }) => ({
         category,
         title,
@@ -87,7 +81,6 @@ export const useDraftStore = create<DraftStore>()(
         phone,
         contactMethod,
         callDevice,
-        demoUser,
       }),
     },
   ),
