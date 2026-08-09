@@ -33,7 +33,7 @@ func writeJSONError(w http.ResponseWriter, status int, code, message string) {
 func (h *PDFHandler) GenerateScenarioPDFReport(w http.ResponseWriter, r *http.Request) {
 	scenarioID, err := httpserver.ParseUUIDPath(r, "scenarioId", "invalid_scenario_id")
 	if err != nil {
-		writeJSONError(w, http.StatusBadRequest, "invalid_scenario_id", err.Error())
+		writeJSONError(w, http.StatusUnprocessableEntity, "invalid_scenario_id", err.Error())
 		return
 	}
 
@@ -75,7 +75,8 @@ func truncateString(s string, maxRunes int) string {
 }
 
 func generatePDF(data service.DetailedScenarioAnalytics) ([]byte, error) {
-	pdf := gofpdf.New("P", "mm", "A4", "")
+	pdf := gofpdf.New("L", "mm", "A4", "")
+	pdf.SetMargins(15, 15, 15)
 	pdf.AddPage()
 
 	pdf.AddUTF8Font("DejaVu", "", "fonts/DejaVuSans.ttf")
@@ -101,29 +102,38 @@ func generatePDF(data service.DetailedScenarioAnalytics) ([]byte, error) {
 	pdf.Cell(40, 10, fmt.Sprintf("Average Time: %.2f sec", data.AverageCompletionTimeSeconds))
 	pdf.Ln(12)
 
-	pdf.SetFont("DejaVu", "B", 12)
-	pdf.Cell(40, 10, "Step")
-	pdf.Cell(20, 10, "Pos")
-	pdf.Cell(22, 10, "Shown")
-	pdf.Cell(25, 10, "Completed")
-	pdf.Cell(22, 10, "Skipped")
-	pdf.Cell(25, 10, "Completion %")
-	pdf.Cell(22, 10, "Skip %")
-	pdf.Cell(25, 10, "Drop-off %")
-	pdf.Ln(8)
+	var printHeader = func() {
+		pdf.SetFont("DejaVu", "B", 11)
+		pdf.Cell(45, 10, "Step")
+		pdf.Cell(20, 10, "Pos")
+		pdf.Cell(25, 10, "Shown")
+		pdf.Cell(30, 10, "Completed")
+		pdf.Cell(25, 10, "Skipped")
+		pdf.Cell(30, 10, "Completion %")
+		pdf.Cell(25, 10, "Skip %")
+		pdf.Cell(30, 10, "Drop-off %")
+		pdf.Ln(8)
+	}
 
-	pdf.SetFont("DejaVu", "", 9)
-	for _, step := range data.Steps {
-		title := truncateString(step.Title, 20)
-		pdf.Cell(40, 6, title)
-		pdf.Cell(20, 6, fmt.Sprintf("%d", step.Position))
-		pdf.Cell(22, 6, fmt.Sprintf("%d", step.Shown))
-		pdf.Cell(25, 6, fmt.Sprintf("%d", step.Completed))
-		pdf.Cell(22, 6, fmt.Sprintf("%d", step.Skipped))
-		pdf.Cell(25, 6, fmt.Sprintf("%.1f%%", step.CompletionRate*100))
-		pdf.Cell(22, 6, fmt.Sprintf("%.1f%%", step.SkipRate*100))
-		pdf.Cell(25, 6, fmt.Sprintf("%.1f%%", step.DropOffRate*100))
-		pdf.Ln(5)
+	printHeader()
+
+	pdf.SetFont("DejaVu", "", 10)
+	for i, step := range data.Steps {
+		if pdf.GetY() > 180 {
+			pdf.AddPage()
+			printHeader()
+		}
+
+		title := truncateString(step.Title, 22)
+		pdf.Cell(45, 7, title)
+		pdf.Cell(20, 7, fmt.Sprintf("%d", step.Position))
+		pdf.Cell(25, 7, fmt.Sprintf("%d", step.Shown))
+		pdf.Cell(30, 7, fmt.Sprintf("%d", step.Completed))
+		pdf.Cell(25, 7, fmt.Sprintf("%d", step.Skipped))
+		pdf.Cell(30, 7, fmt.Sprintf("%.1f%%", step.CompletionRate*100))
+		pdf.Cell(25, 7, fmt.Sprintf("%.1f%%", step.SkipRate*100))
+		pdf.Cell(30, 7, fmt.Sprintf("%.1f%%", step.DropOffRate*100))
+		pdf.Ln(6)
 	}
 
 	var buf bytes.Buffer

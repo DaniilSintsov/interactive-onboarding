@@ -44,13 +44,20 @@ func (r *AnalyticsRepository) ScenarioExistsPhysical(ctx context.Context, scenar
 	return exists, nil
 }
 
-func (r *AnalyticsRepository) ScenarioExistsActive(ctx context.Context, scenarioID string) (bool, error) {
+func (r *AnalyticsRepository) ScenarioExistsActiveWithProject(ctx context.Context, scenarioID string) (bool, error) {
 	var exists bool
 	err := r.db.QueryRow(ctx, `
-		SELECT EXISTS(SELECT 1 FROM onboarding.scenarios WHERE id = $1 AND deleted_at IS NULL)
+		SELECT EXISTS(
+			SELECT 1 
+			FROM onboarding.scenarios s
+			JOIN onboarding.projects p ON p.id = s.project_id
+			WHERE s.id = $1 
+			AND s.deleted_at IS NULL
+			AND p.deleted_at IS NULL
+		)
 	`, scenarioID).Scan(&exists)
 	if err != nil {
-		return false, fmt.Errorf("check scenario exists active: %w", err)
+		return false, fmt.Errorf("check scenario exists with active project: %w", err)
 	}
 	return exists, nil
 }
@@ -123,10 +130,11 @@ func (r *AnalyticsRepository) GetStepFunnel(ctx context.Context, scenarioID stri
 		step_next_sessions AS (
 			SELECT 
 				s.id AS step_id,
+				LEAD(s.id) OVER (ORDER BY s.step_num) AS next_step_id,
 				LEAD(ss.sessions) OVER (ORDER BY s.step_num) AS next_sessions
 			FROM onboarding.steps s
 			LEFT JOIN step_shown_sessions ss ON ss.step_id = s.id
-			WHERE s.scenario_id = $1
+			WHERE s.scenario_id = $1 AND s.deleted_at IS NULL
 		)
 		SELECT 
 			s.id AS step_id,
@@ -151,7 +159,7 @@ func (r *AnalyticsRepository) GetStepFunnel(ctx context.Context, scenarioID stri
 			) AS skipped,
 			COALESCE(
 				CASE 
-					WHEN sns.next_sessions IS NULL THEN
+					WHEN sns.next_step_id IS NULL THEN
 						(SELECT COUNT(DISTINCT session_id)
 						 FROM onboarding.events 
 						 WHERE step_id = s.id 
@@ -169,7 +177,7 @@ func (r *AnalyticsRepository) GetStepFunnel(ctx context.Context, scenarioID stri
 							ARRAY(
 								SELECT UNNEST(ss.sessions)
 								EXCEPT
-								SELECT UNNEST(sns.next_sessions)
+								SELECT UNNEST(COALESCE(sns.next_sessions, ARRAY[]::uuid[]))
 							)
 						)
 				END, 0
@@ -177,8 +185,8 @@ func (r *AnalyticsRepository) GetStepFunnel(ctx context.Context, scenarioID stri
 		FROM onboarding.steps s
 		LEFT JOIN step_shown_sessions ss ON ss.step_id = s.id
 		LEFT JOIN step_next_sessions sns ON sns.step_id = s.id
-		WHERE s.scenario_id = $1
-		GROUP BY s.id, s.step_num, s.title, ss.sessions, sns.next_sessions
+		WHERE s.scenario_id = $1 AND s.deleted_at IS NULL
+		GROUP BY s.id, s.step_num, s.title, ss.sessions, sns.next_step_id, sns.next_sessions
 		ORDER BY s.step_num ASC
 	`
 
@@ -235,7 +243,7 @@ func (r *AnalyticsRepository) GetProjectStats(ctx context.Context, projectID str
 		FROM onboarding.sessions
 		WHERE scenario_id IN (
 			SELECT id FROM onboarding.scenarios 
-			WHERE project_id = $1
+			WHERE project_id = $1 AND deleted_at IS NULL
 		)
 		AND ($2::TIMESTAMPTZ IS NULL OR started_at >= $2)
 		AND ($3::TIMESTAMPTZ IS NULL OR started_at < $3)

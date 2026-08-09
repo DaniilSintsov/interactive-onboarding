@@ -71,7 +71,7 @@ func clamp(v float64) float64 {
 }
 
 func (s *AnalyticsService) GetScenarioAnalytics(ctx context.Context, scenarioID string, from, to *time.Time) (ScenarioAnalytics, error) {
-	exists, err := s.repo.ScenarioExistsPhysical(ctx, scenarioID)
+	exists, err := s.repo.ScenarioExistsActiveWithProject(ctx, scenarioID)
 	if err != nil {
 		return ScenarioAnalytics{}, fmt.Errorf("check scenario exists: %w", err)
 	}

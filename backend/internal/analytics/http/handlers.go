@@ -31,7 +31,7 @@ func writeJSONError(w http.ResponseWriter, status int, code, message string) {
 func (h *AnalyticsHandler) GetScenarioAnalyticsTotal(w http.ResponseWriter, r *http.Request) {
 	id, err := httpserver.ParseUUIDPath(r, "scenarioId", "invalid_scenario_id")
 	if err != nil {
-		writeJSONError(w, http.StatusBadRequest, "invalid_scenario_id", err.Error())
+		writeJSONError(w, http.StatusUnprocessableEntity, "invalid_scenario_id", err.Error())
 		return
 	}
 
@@ -57,7 +57,7 @@ func (h *AnalyticsHandler) GetScenarioAnalyticsTotal(w http.ResponseWriter, r *h
 func (h *AnalyticsHandler) GetDetailedScenarioAnalytics(w http.ResponseWriter, r *http.Request) {
 	id, err := httpserver.ParseUUIDPath(r, "scenarioId", "invalid_scenario_id")
 	if err != nil {
-		writeJSONError(w, http.StatusBadRequest, "invalid_scenario_id", err.Error())
+		writeJSONError(w, http.StatusUnprocessableEntity, "invalid_scenario_id", err.Error())
 		return
 	}
 
@@ -83,7 +83,7 @@ func (h *AnalyticsHandler) GetDetailedScenarioAnalytics(w http.ResponseWriter, r
 func (h *AnalyticsHandler) GetProjectAnalyticsTotal(w http.ResponseWriter, r *http.Request) {
 	id, err := httpserver.ParseUUIDPath(r, "projectId", "invalid_project_id")
 	if err != nil {
-		writeJSONError(w, http.StatusBadRequest, "invalid_project_id", err.Error())
+		writeJSONError(w, http.StatusUnprocessableEntity, "invalid_project_id", err.Error())
 		return
 	}
 
