@@ -260,11 +260,9 @@ func validateEvent(event *trackingModel.CreateEventRequest) (time.Time, error) {
 		if _, err := uuid.Parse(*event.StepID); err != nil {
 			return time.Time{}, invalid("step_id must be a UUID")
 		}
-	} else {
-		if event.Type != trackingModel.EventTypeOnboardingSkipped &&
-			event.Type != trackingModel.EventTypeOnboardingCompleted {
-			return time.Time{}, invalid("step_id is required")
-		}
+	} else if event.Type != trackingModel.EventTypeOnboardingSkipped &&
+		event.Type != trackingModel.EventTypeOnboardingCompleted {
+		return time.Time{}, invalid("step_id is required")
 	}
 	if !isEventType(event.Type) {
 		return time.Time{}, invalid("type is not supported")
