@@ -62,9 +62,16 @@ func (h *PDFHandler) GenerateScenarioPDFReport(w http.ResponseWriter, r *http.Re
 	w.Header().Set("Content-Type", "application/pdf")
 	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=report_%s.pdf", scenarioID.String()))
 	if _, err := w.Write(pdfData); err != nil {
-		// После отправки заголовков JSON-ошибку уже не вернуть, только логируем
-		// TODO: добавить логирование ошибки
+		return
 	}
+}
+
+func truncateString(s string, maxRunes int) string {
+	runes := []rune(s)
+	if len(runes) <= maxRunes {
+		return s
+	}
+	return string(runes[:maxRunes]) + "..."
 }
 
 func generatePDF(data service.DetailedScenarioAnalytics) ([]byte, error) {
@@ -89,31 +96,34 @@ func generatePDF(data service.DetailedScenarioAnalytics) ([]byte, error) {
 	pdf.Ln(6)
 	pdf.Cell(40, 10, fmt.Sprintf("Completion Rate: %.2f%%", data.CompletionRate*100))
 	pdf.Ln(6)
+	pdf.Cell(40, 10, fmt.Sprintf("Skip Rate: %.2f%%", data.SkipRate*100))
+	pdf.Ln(6)
 	pdf.Cell(40, 10, fmt.Sprintf("Average Time: %.2f sec", data.AverageCompletionTimeSeconds))
 	pdf.Ln(12)
 
 	pdf.SetFont("DejaVu", "B", 12)
-	pdf.Cell(30, 10, "Step")
-	pdf.Cell(30, 10, "Position")
-	pdf.Cell(40, 10, "Shown")
-	pdf.Cell(40, 10, "Completed")
-	pdf.Cell(40, 10, "Completion Rate")
+	pdf.Cell(50, 10, "Step")
+	pdf.Cell(25, 10, "Pos")
+	pdf.Cell(25, 10, "Shown")
+	pdf.Cell(25, 10, "Completed")
+	pdf.Cell(25, 10, "Skipped")
+	pdf.Cell(30, 10, "Completion %")
+	pdf.Cell(30, 10, "Skip %")
+	pdf.Cell(30, 10, "Drop-off %")
 	pdf.Ln(8)
 
-	pdf.SetFont("DejaVu", "", 11)
+	pdf.SetFont("DejaVu", "", 10)
 	for _, step := range data.Steps {
-		// Обрезаем через []rune для корректной работы с UTF-8
-		title := step.Title
-		runes := []rune(title)
-		if len(runes) > 20 {
-			title = string(runes[:20]) + "..."
-		}
-		pdf.Cell(30, 8, title)
-		pdf.Cell(30, 8, fmt.Sprintf("%d", step.Position))
-		pdf.Cell(40, 8, fmt.Sprintf("%d", step.Shown))
-		pdf.Cell(40, 8, fmt.Sprintf("%d", step.Completed))
-		pdf.Cell(40, 8, fmt.Sprintf("%.2f%%", step.CompletionRate*100))
-		pdf.Ln(7)
+		title := truncateString(step.Title, 25)
+		pdf.Cell(50, 7, title)
+		pdf.Cell(25, 7, fmt.Sprintf("%d", step.Position))
+		pdf.Cell(25, 7, fmt.Sprintf("%d", step.Shown))
+		pdf.Cell(25, 7, fmt.Sprintf("%d", step.Completed))
+		pdf.Cell(25, 7, fmt.Sprintf("%d", step.Skipped))
+		pdf.Cell(30, 7, fmt.Sprintf("%.1f%%", step.CompletionRate*100))
+		pdf.Cell(30, 7, fmt.Sprintf("%.1f%%", step.SkipRate*100))
+		pdf.Cell(30, 7, fmt.Sprintf("%.1f%%", step.DropOffRate*100))
+		pdf.Ln(6)
 	}
 
 	var buf bytes.Buffer

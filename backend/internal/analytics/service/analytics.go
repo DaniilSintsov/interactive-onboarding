@@ -60,8 +60,18 @@ type DetailedScenarioAnalytics struct {
 	Steps []StepAnalytics `json:"steps"`
 }
 
+func clamp(v float64) float64 {
+	if v < 0 {
+		return 0
+	}
+	if v > 1 {
+		return 1
+	}
+	return v
+}
+
 func (s *AnalyticsService) GetScenarioAnalytics(ctx context.Context, scenarioID string, from, to *time.Time) (ScenarioAnalytics, error) {
-	exists, err := s.repo.ScenarioExists(ctx, scenarioID)
+	exists, err := s.repo.ScenarioExistsPhysical(ctx, scenarioID)
 	if err != nil {
 		return ScenarioAnalytics{}, fmt.Errorf("check scenario exists: %w", err)
 	}
@@ -76,11 +86,11 @@ func (s *AnalyticsService) GetScenarioAnalytics(ctx context.Context, scenarioID 
 
 	completionRate := 0.0
 	if stats.Started > 0 {
-		completionRate = float64(stats.Completed) / float64(stats.Started)
+		completionRate = clamp(float64(stats.Completed) / float64(stats.Started))
 	}
 	skipRate := 0.0
 	if stats.Started > 0 {
-		skipRate = float64(stats.Skipped) / float64(stats.Started)
+		skipRate = clamp(float64(stats.Skipped) / float64(stats.Started))
 	}
 
 	return ScenarioAnalytics{
@@ -109,14 +119,13 @@ func (s *AnalyticsService) GetDetailedScenarioAnalytics(ctx context.Context, sce
 	for i, stat := range stepStats {
 		completionRate := 0.0
 		if stat.Shown > 0 {
-			completionRate = float64(stat.Completed) / float64(stat.Shown)
+			completionRate = clamp(float64(stat.Completed) / float64(stat.Shown))
 		}
 		skipRate := 0.0
 		if stat.Shown > 0 {
-			skipRate = float64(stat.Skipped) / float64(stat.Shown)
+			skipRate = clamp(float64(stat.Skipped) / float64(stat.Shown))
 		}
 
-		// ✅ Исправленный dropOffRate через пользователей
 		dropOffRate := 0.0
 		if stat.Shown > 0 {
 			var nextShown int64
@@ -130,6 +139,7 @@ func (s *AnalyticsService) GetDetailedScenarioAnalytics(ctx context.Context, sce
 			} else {
 				dropOffRate = 1 - float64(nextShown)/float64(stat.Shown)
 			}
+			dropOffRate = clamp(dropOffRate)
 		}
 
 		steps[i] = StepAnalytics{
@@ -151,7 +161,7 @@ func (s *AnalyticsService) GetDetailedScenarioAnalytics(ctx context.Context, sce
 }
 
 func (s *AnalyticsService) GetProjectAnalytics(ctx context.Context, projectID string, from, to *time.Time) (ProjectAnalytics, error) {
-	exists, err := s.repo.ProjectExists(ctx, projectID)
+	exists, err := s.repo.ProjectExistsPhysical(ctx, projectID)
 	if err != nil {
 		return ProjectAnalytics{}, fmt.Errorf("check project exists: %w", err)
 	}
@@ -165,11 +175,11 @@ func (s *AnalyticsService) GetProjectAnalytics(ctx context.Context, projectID st
 	}
 	completionRate := 0.0
 	if started > 0 {
-		completionRate = float64(completed) / float64(started)
+		completionRate = clamp(float64(completed) / float64(started))
 	}
 	skipRate := 0.0
 	if started > 0 {
-		skipRate = float64(skipped) / float64(started)
+		skipRate = clamp(float64(skipped) / float64(started))
 	}
 	return ProjectAnalytics{
 		ProjectID:         projectID,

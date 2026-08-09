@@ -32,7 +32,7 @@ type StepStats struct {
 	Skipped   int64
 }
 
-func (r *AnalyticsRepository) ScenarioExists(ctx context.Context, scenarioID string) (bool, error) {
+func (r *AnalyticsRepository) ScenarioExistsPhysical(ctx context.Context, scenarioID string) (bool, error) {
 	var exists bool
 	err := r.db.QueryRow(ctx, `
 		SELECT EXISTS(SELECT 1 FROM onboarding.scenarios WHERE id = $1)
@@ -43,13 +43,35 @@ func (r *AnalyticsRepository) ScenarioExists(ctx context.Context, scenarioID str
 	return exists, nil
 }
 
-func (r *AnalyticsRepository) ProjectExists(ctx context.Context, projectID string) (bool, error) {
+func (r *AnalyticsRepository) ScenarioExistsActive(ctx context.Context, scenarioID string) (bool, error) {
+	var exists bool
+	err := r.db.QueryRow(ctx, `
+		SELECT EXISTS(SELECT 1 FROM onboarding.scenarios WHERE id = $1 AND deleted_at IS NULL)
+	`, scenarioID).Scan(&exists)
+	if err != nil {
+		return false, fmt.Errorf("check scenario exists active: %w", err)
+	}
+	return exists, nil
+}
+
+func (r *AnalyticsRepository) ProjectExistsPhysical(ctx context.Context, projectID string) (bool, error) {
+	var exists bool
+	err := r.db.QueryRow(ctx, `
+		SELECT EXISTS(SELECT 1 FROM onboarding.projects WHERE id = $1)
+	`, projectID).Scan(&exists)
+	if err != nil {
+		return false, fmt.Errorf("check project exists: %w", err)
+	}
+	return exists, nil
+}
+
+func (r *AnalyticsRepository) ProjectExistsActive(ctx context.Context, projectID string) (bool, error) {
 	var exists bool
 	err := r.db.QueryRow(ctx, `
 		SELECT EXISTS(SELECT 1 FROM onboarding.projects WHERE id = $1 AND deleted_at IS NULL)
 	`, projectID).Scan(&exists)
 	if err != nil {
-		return false, fmt.Errorf("check project exists: %w", err)
+		return false, fmt.Errorf("check project exists active: %w", err)
 	}
 	return exists, nil
 }
