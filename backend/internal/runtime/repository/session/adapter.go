@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/DaniilSintsov/interactive-onboarding/backend/internal/platform/postgres/transactor"
 	runtimeModel "github.com/DaniilSintsov/interactive-onboarding/backend/internal/runtime/model"
 	session "github.com/DaniilSintsov/interactive-onboarding/backend/internal/runtime/repository/session/sqlc"
 	"github.com/google/uuid"
@@ -22,6 +23,13 @@ func NewSessionRepository(db session.DBTX) *SessionRepository {
 	}
 }
 
+func (r *SessionRepository) getQueries(ctx context.Context) *session.Queries {
+	if tx, err := transactor.ExtractTx(ctx); err == nil {
+		return r.queries.WithTx(tx)
+	}
+	return r.queries
+}
+
 func (r *SessionRepository) GetSessionByScenarioAndUser(
 	ctx context.Context, scenarioID, userID string,
 ) (*runtimeModel.Session, error) {
@@ -30,7 +38,7 @@ func (r *SessionRepository) GetSessionByScenarioAndUser(
 		return nil, fmt.Errorf("parse scenario ID: %w", err)
 	}
 
-	found, err := r.queries.GetSessionByScenarioAndUser(ctx, session.GetSessionByScenarioAndUserParams{
+	found, err := r.getQueries(ctx).GetSessionByScenarioAndUser(ctx, session.GetSessionByScenarioAndUserParams{
 		ScenarioID: parsedScenarioID,
 		UserID:     userID,
 	})

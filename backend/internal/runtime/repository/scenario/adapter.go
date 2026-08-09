@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/DaniilSintsov/interactive-onboarding/backend/internal/platform/postgres/transactor"
 	runtimeModel "github.com/DaniilSintsov/interactive-onboarding/backend/internal/runtime/model"
 	scenario "github.com/DaniilSintsov/interactive-onboarding/backend/internal/runtime/repository/scenario/sqlc"
 	"github.com/google/uuid"
@@ -19,13 +20,20 @@ func NewScenarioRepository(db scenario.DBTX) *ScenarioRepository {
 	return &ScenarioRepository{queries: scenario.New(db)}
 }
 
+func (r *ScenarioRepository) getQueries(ctx context.Context) *scenario.Queries {
+	if tx, err := transactor.ExtractTx(ctx); err == nil {
+		return r.queries.WithTx(tx)
+	}
+	return r.queries
+}
+
 func (r *ScenarioRepository) GetScenarioById(ctx context.Context, scenarioID string) (*runtimeModel.Scenario, error) {
 	parsedScenarioID, err := uuid.Parse(scenarioID)
 	if err != nil {
 		return nil, fmt.Errorf("parse scenario ID: %w", err)
 	}
 
-	found, err := r.queries.GetScenarioById(ctx, parsedScenarioID)
+	found, err := r.getQueries(ctx).GetScenarioById(ctx, parsedScenarioID)
 	if err != nil {
 		return nil, err
 	}
