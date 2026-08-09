@@ -128,18 +128,7 @@ func (s *AnalyticsService) GetDetailedScenarioAnalytics(ctx context.Context, sce
 
 		dropOffRate := 0.0
 		if stat.Shown > 0 {
-			var nextShown int64
-			if i == len(stepStats)-1 {
-				nextShown = summary.Completed
-			} else {
-				nextShown = stepStats[i+1].Shown
-			}
-			if nextShown > stat.Shown {
-				dropOffRate = 0.0
-			} else {
-				dropOffRate = 1 - float64(nextShown)/float64(stat.Shown)
-			}
-			dropOffRate = clamp(dropOffRate)
+			dropOffRate = clamp(float64(stat.DropOff) / float64(stat.Shown))
 		}
 
 		steps[i] = StepAnalytics{
@@ -161,7 +150,7 @@ func (s *AnalyticsService) GetDetailedScenarioAnalytics(ctx context.Context, sce
 }
 
 func (s *AnalyticsService) GetProjectAnalytics(ctx context.Context, projectID string, from, to *time.Time) (ProjectAnalytics, error) {
-	exists, err := s.repo.ProjectExistsPhysical(ctx, projectID)
+	exists, err := s.repo.ProjectExistsActive(ctx, projectID)
 	if err != nil {
 		return ProjectAnalytics{}, fmt.Errorf("check project exists: %w", err)
 	}
