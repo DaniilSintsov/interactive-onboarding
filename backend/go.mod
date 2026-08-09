@@ -7,6 +7,7 @@ require (
 	github.com/go-playground/validator/v10 v10.30.3
 	github.com/google/uuid v1.6.0
 	github.com/jackc/pgx/v5 v5.10.0
+	github.com/jung-kurt/gofpdf/v2 v2.17.3
 	github.com/pressly/goose/v3 v3.27.3
 	go.uber.org/zap v1.28.0
 )
