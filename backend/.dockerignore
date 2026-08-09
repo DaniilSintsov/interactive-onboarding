@@ -1,7 +1,0 @@
-.git
-.gitignore
-.dockerignore
-
-*.env
-*.log
-*.txt
