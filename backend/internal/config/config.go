@@ -18,6 +18,7 @@ type (
 		WriteTimeout      time.Duration `env:"HTTP_WRITE_TIMEOUT" envDefault:"30s"`
 		IdleTimeout       time.Duration `env:"HTTP_IDLE_TIMEOUT" envDefault:"60s"`
 		HTTPShutdownTime  time.Duration `env:"HTTP_SHUTDOWN_TIME" envDefault:"30s"`
+		AdminToken        string        `env:"ADMIN_TOKEN" envDefault:"admin_token"`
 	}
 
 	PGConfig struct {
