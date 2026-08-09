@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/DaniilSintsov/interactive-onboarding/backend/internal/platform/postgres/transactor"
 	trackingModel "github.com/DaniilSintsov/interactive-onboarding/backend/internal/tracking/model"
 	scenarioSQLC "github.com/DaniilSintsov/interactive-onboarding/backend/internal/tracking/repository/scenario/sqlc"
 	trackingService "github.com/DaniilSintsov/interactive-onboarding/backend/internal/tracking/service"
@@ -21,6 +22,13 @@ func NewScenarioRepository(db scenarioSQLC.DBTX) *ScenarioRepository {
 	return &ScenarioRepository{queries: scenarioSQLC.New(db)}
 }
 
+func (r *ScenarioRepository) getQueries(ctx context.Context) *scenarioSQLC.Queries {
+	if tx, err := transactor.ExtractTx(ctx); err == nil {
+		return r.queries.WithTx(tx)
+	}
+	return r.queries
+}
+
 func (r *ScenarioRepository) GetScenarioByIdAndProjectKey(
 	ctx context.Context, scenarioID, projectKey string,
 ) (*trackingModel.Scenario, error) {
@@ -29,7 +37,7 @@ func (r *ScenarioRepository) GetScenarioByIdAndProjectKey(
 		return nil, err
 	}
 
-	found, err := r.queries.GetScenarioByIdAndProjectKey(ctx, scenarioSQLC.GetScenarioByIdAndProjectKeyParams{
+	found, err := r.getQueries(ctx).GetScenarioByIdAndProjectKey(ctx, scenarioSQLC.GetScenarioByIdAndProjectKeyParams{
 		ID:         id,
 		ProjectKey: projectKey,
 	})

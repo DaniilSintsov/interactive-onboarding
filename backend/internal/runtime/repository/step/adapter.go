@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 
+	"github.com/DaniilSintsov/interactive-onboarding/backend/internal/platform/postgres/transactor"
 	runtimeModel "github.com/DaniilSintsov/interactive-onboarding/backend/internal/runtime/model"
 	step "github.com/DaniilSintsov/interactive-onboarding/backend/internal/runtime/repository/step/sqlc"
 	"github.com/google/uuid"
@@ -18,13 +19,20 @@ func NewStepRepository(db step.DBTX) *StepRepository {
 	return &StepRepository{queries: step.New(db)}
 }
 
+func (r *StepRepository) getQueries(ctx context.Context) *step.Queries {
+	if tx, err := transactor.ExtractTx(ctx); err == nil {
+		return r.queries.WithTx(tx)
+	}
+	return r.queries
+}
+
 func (r *StepRepository) GetStepsByScenarioId(ctx context.Context, scenarioID string) (*runtimeModel.RuntimeScenario, error) {
 	parsedScenarioID, err := uuid.Parse(scenarioID)
 	if err != nil {
 		return nil, fmt.Errorf("parse scenario ID: %w", err)
 	}
 
-	rows, err := r.queries.GetStepsByScenarioId(ctx, parsedScenarioID)
+	rows, err := r.getQueries(ctx).GetStepsByScenarioId(ctx, parsedScenarioID)
 	if err != nil {
 		return nil, err
 	}

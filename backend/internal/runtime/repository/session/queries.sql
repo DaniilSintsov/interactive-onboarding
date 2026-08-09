@@ -7,4 +7,6 @@ SELECT id,
        finished_at
 FROM onboarding.sessions
 WHERE scenario_id = sqlc.arg(scenario_id)
-  AND user_id = sqlc.arg(user_id);
+  AND user_id = sqlc.arg(user_id)
+ORDER BY started_at DESC, id DESC
+LIMIT 1;

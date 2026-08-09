@@ -14,8 +14,9 @@ func TestFindScenariosFiltersRecentlyFinishedScenarios(t *testing.T) {
 	completedRecently := runtimeModel.Scenario{ID: "completed-recently"}
 	active := runtimeModel.Scenario{ID: "active"}
 	completedLongAgo := runtimeModel.Scenario{ID: "completed-long-ago"}
+	unseen := runtimeModel.Scenario{ID: "unseen"}
 	scenarios := &scenarioRepositoryFake{scenarios: []runtimeModel.Scenario{
-		completedRecently, active, completedLongAgo,
+		completedRecently, active, completedLongAgo, unseen,
 	}}
 	sessions := &sessionRepositoryFake{sessions: map[string]*runtimeModel.Session{
 		completedRecently.ID: {Status: runtimeModel.SessionStatusCompleted, FinishedAt: timePtr(time.Now().AddDate(0, -5, 0))},
@@ -23,8 +24,9 @@ func TestFindScenariosFiltersRecentlyFinishedScenarios(t *testing.T) {
 		completedLongAgo.ID:  {Status: runtimeModel.SessionStatusSkipped, FinishedAt: timePtr(time.Now().AddDate(0, -7, 0))},
 	}}
 	steps := &stepRepositoryFake{scenarios: map[string]*runtimeModel.RuntimeScenario{
-		active.ID:           {ID: active.ID},
-		completedLongAgo.ID: {ID: completedLongAgo.ID},
+		active.ID:           {ID: active.ID, Steps: []runtimeModel.RuntimeStep{{}}},
+		completedLongAgo.ID: {ID: completedLongAgo.ID, Steps: []runtimeModel.RuntimeStep{{}}},
+		unseen.ID:           {ID: unseen.ID, Steps: []runtimeModel.RuntimeStep{{}}},
 	}}
 
 	response, err := newRuntimeService(scenarios, sessions, steps, nil, nil).FindScenarios(projectContext(), "/home", "user-1")
@@ -35,15 +37,15 @@ func TestFindScenariosFiltersRecentlyFinishedScenarios(t *testing.T) {
 	if response.IsTest {
 		t.Fatal("FindScenarios() unexpectedly returned test mode")
 	}
-	if len(response.Scenarios) != 2 {
-		t.Fatalf("FindScenarios() returned %d scenarios, want 2", len(response.Scenarios))
+	if len(response.Scenarios) != 3 {
+		t.Fatalf("FindScenarios() returned %d scenarios, want 3", len(response.Scenarios))
 	}
 	got := map[string]bool{}
 	for _, scenario := range response.Scenarios {
 		got[scenario.ID] = true
 	}
-	if got[completedRecently.ID] || !got[active.ID] || !got[completedLongAgo.ID] {
-		t.Fatalf("FindScenarios() scenarios = %#v, want active and long-ago completed scenarios", response.Scenarios)
+	if got[completedRecently.ID] || !got[active.ID] || !got[completedLongAgo.ID] || !got[unseen.ID] {
+		t.Fatalf("FindScenarios() scenarios = %#v, want active, unseen, and long-ago completed scenarios", response.Scenarios)
 	}
 	if sessions.calls[completedLongAgo.ID] != 1 {
 		t.Fatalf("session lookup for swapped scenario = %d, want 1", sessions.calls[completedLongAgo.ID])
@@ -52,10 +54,12 @@ func TestFindScenariosFiltersRecentlyFinishedScenarios(t *testing.T) {
 
 func TestFindScenariosReturnsTestScenarioWithoutNormalLookups(t *testing.T) {
 	const token = "test-token"
-	scenarios := &scenarioRepositoryFake{scenarioByProject: &runtimeModel.Scenario{ID: "test-scenario"}}
+	scenarios := &scenarioRepositoryFake{scenarioByProject: &runtimeModel.Scenario{
+		ID: "test-scenario", PagePattern: "/any-page",
+	}}
 	sessions := &sessionRepositoryFake{}
 	steps := &stepRepositoryFake{scenarios: map[string]*runtimeModel.RuntimeScenario{
-		"test-scenario": {ID: "test-scenario", Name: "Test"},
+		"test-scenario": {ID: "test-scenario", Name: "Test", Steps: []runtimeModel.RuntimeStep{{}}},
 	}}
 	tokens := &testTokensRepositoryFake{token: &runtimeModel.TestToken{
 		ScenarioID: "test-scenario",
@@ -81,6 +85,7 @@ func TestFindScenariosReturnsTestScenarioWithoutNormalLookups(t *testing.T) {
 }
 
 func TestFindScenariosReturnsExpectedErrors(t *testing.T) {
+	projectLookupErr := errors.New("project lookup failed")
 	tests := []struct {
 		name string
 		ctx  context.Context
@@ -107,18 +112,29 @@ func TestFindScenariosReturnsExpectedErrors(t *testing.T) {
 			want: errors.New("session lookup failed"),
 		},
 		{
+			name: "project lookup failure",
+			ctx:  projectContext(),
+			svc: NewRuntimeService(
+				&scenarioRepositoryFake{}, &sessionRepositoryFake{}, &stepRepositoryFake{}, nil, nil,
+				&projectRepositoryFake{err: projectLookupErr},
+			),
+			want: projectLookupErr,
+		},
+		{
+			name: "unknown project key",
+			ctx:  projectContext(),
+			svc: NewRuntimeService(
+				&scenarioRepositoryFake{}, &sessionRepositoryFake{}, &stepRepositoryFake{}, nil, nil,
+				&projectRepositoryFake{err: sql.ErrNoRows},
+			),
+			want: ErrProjectTokenIsNotValid,
+		},
+		{
 			name: "unknown test token",
 			ctx:  context.WithValue(projectContext(), "testToken", "token"),
 			svc: newRuntimeService(&scenarioRepositoryFake{}, &sessionRepositoryFake{}, &stepRepositoryFake{},
 				&testTokensRepositoryFake{err: sql.ErrNoRows}, &tokenHasherFake{}),
-			want: ErrScenarioNotFound,
-		},
-		{
-			name: "expired test token",
-			ctx:  context.WithValue(projectContext(), "testToken", "token"),
-			svc: newRuntimeService(&scenarioRepositoryFake{}, &sessionRepositoryFake{}, &stepRepositoryFake{},
-				&testTokensRepositoryFake{token: &runtimeModel.TestToken{ExpiresAt: time.Now().Add(-time.Second)}}, &tokenHasherFake{}),
-			want: ErrTokenIsExpired,
+			want: ErrTestTokenInvalid,
 		},
 	}
 
@@ -126,6 +142,71 @@ func TestFindScenariosReturnsExpectedErrors(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			_, err := tt.svc.FindScenarios(tt.ctx, "/home", "user-1")
 			if err == nil || err.Error() != tt.want.Error() {
+				t.Fatalf("FindScenarios() error = %v, want %v", err, tt.want)
+			}
+		})
+	}
+}
+
+func TestFindScenariosValidatesTestToken(t *testing.T) {
+	tokenLookupErr := errors.New("token lookup failed")
+	scenarioLookupErr := errors.New("test scenario lookup failed")
+	validToken := func() *runtimeModel.TestToken {
+		return &runtimeModel.TestToken{
+			ScenarioID: "scenario-1",
+			ExpiresAt:  time.Now().Add(time.Hour),
+		}
+	}
+	tests := []struct {
+		name      string
+		scenarios *scenarioRepositoryFake
+		tokens    *testTokensRepositoryFake
+		want      error
+	}{
+		{
+			name:      "expired token",
+			scenarios: &scenarioRepositoryFake{},
+			tokens: &testTokensRepositoryFake{token: &runtimeModel.TestToken{
+				ScenarioID: "scenario-1",
+				ExpiresAt:  time.Now().Add(-time.Minute),
+			}},
+			want: ErrTestTokenInvalid,
+		},
+		{
+			name:      "cross-project token",
+			scenarios: &scenarioRepositoryFake{scenarioByProjErr: sql.ErrNoRows},
+			tokens:    &testTokensRepositoryFake{token: validToken()},
+			want:      ErrTestTokenInvalid,
+		},
+		{
+			name: "page mismatch",
+			scenarios: &scenarioRepositoryFake{scenarioByProject: &runtimeModel.Scenario{
+				ID: "scenario-1", PagePattern: "/other-page",
+			}},
+			tokens: &testTokensRepositoryFake{token: validToken()},
+			want:   ErrPageMismatch,
+		},
+		{
+			name:      "unexpected token lookup error",
+			scenarios: &scenarioRepositoryFake{},
+			tokens:    &testTokensRepositoryFake{err: tokenLookupErr},
+			want:      tokenLookupErr,
+		},
+		{
+			name:      "unexpected scenario lookup error",
+			scenarios: &scenarioRepositoryFake{scenarioByProjErr: scenarioLookupErr},
+			tokens:    &testTokensRepositoryFake{token: validToken()},
+			want:      scenarioLookupErr,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx := context.WithValue(projectContext(), "testToken", "token")
+			svc := newRuntimeService(tt.scenarios, &sessionRepositoryFake{}, &stepRepositoryFake{}, tt.tokens, &tokenHasherFake{})
+
+			_, err := svc.FindScenarios(ctx, "/home", "user-1")
+			if !errors.Is(err, tt.want) {
 				t.Fatalf("FindScenarios() error = %v, want %v", err, tt.want)
 			}
 		})
@@ -141,7 +222,9 @@ func timePtr(value time.Time) *time.Time {
 }
 
 func newRuntimeService(scenario ScenarioRepository, session SessionRepository, steps StepRepository, tokens TestTokensRepository, hasher TokenHasher) *RuntimeService {
-	return NewRuntimeService(scenario, session, steps, tokens, hasher)
+	return NewRuntimeService(scenario, session, steps, tokens, hasher, &projectRepositoryFake{
+		project: &runtimeModel.Project{ProjectKey: "project-key"},
+	})
 }
 
 type scenarioRepositoryFake struct {
@@ -225,4 +308,15 @@ type tokenHasherFake struct {
 func (h *tokenHasherFake) Hash(rawToken string) []byte {
 	h.rawToken = rawToken
 	return h.hash
+}
+
+type projectRepositoryFake struct {
+	project *runtimeModel.Project
+	err     error
+	calls   int
+}
+
+func (r *projectRepositoryFake) GetProjectByProjectKey(context.Context, string) (*runtimeModel.Project, error) {
+	r.calls++
+	return r.project, r.err
 }

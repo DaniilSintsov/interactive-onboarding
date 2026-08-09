@@ -12,8 +12,7 @@ import (
 
 type Querier interface {
 	ChangeSessionStatus(ctx context.Context, arg ChangeSessionStatusParams) (OnboardingSession, error)
-	CreateSession(ctx context.Context, arg CreateSessionParams) (OnboardingSession, error)
-	GetSessionByScenarioAndUser(ctx context.Context, arg GetSessionByScenarioAndUserParams) (OnboardingSession, error)
+	CreateOrGetActiveSession(ctx context.Context, arg CreateOrGetActiveSessionParams) (OnboardingSession, error)
 	SelectSessionById(ctx context.Context, id uuid.UUID) (OnboardingSession, error)
 }
 

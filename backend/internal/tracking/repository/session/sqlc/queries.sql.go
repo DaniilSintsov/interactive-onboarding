@@ -39,57 +39,30 @@ func (q *Queries) ChangeSessionStatus(ctx context.Context, arg ChangeSessionStat
 	return i, err
 }
 
-const createSession = `-- name: CreateSession :one
+const createOrGetActiveSession = `-- name: CreateOrGetActiveSession :one
 INSERT INTO onboarding.sessions
   ("id", "scenario_id", "user_id", "status", "started_at", "finished_at")
 VALUES
-  ($1, $2, $3, $4, $5, $6)
+  ($1, $2, $3, 'active', $4, NULL)
+ON CONFLICT ("scenario_id", "user_id") WHERE "status" = 'active'
+DO UPDATE SET "user_id" = EXCLUDED."user_id"
 RETURNING id, scenario_id, user_id, status, started_at, finished_at
 `
 
-type CreateSessionParams struct {
+type CreateOrGetActiveSessionParams struct {
 	ID         uuid.UUID          `json:"id"`
 	ScenarioID uuid.UUID          `json:"scenario_id"`
 	UserID     string             `json:"user_id"`
-	Status     string             `json:"status"`
 	StartedAt  pgtype.Timestamptz `json:"started_at"`
-	FinishedAt pgtype.Timestamptz `json:"finished_at"`
 }
 
-func (q *Queries) CreateSession(ctx context.Context, arg CreateSessionParams) (OnboardingSession, error) {
-	row := q.db.QueryRow(ctx, createSession,
+func (q *Queries) CreateOrGetActiveSession(ctx context.Context, arg CreateOrGetActiveSessionParams) (OnboardingSession, error) {
+	row := q.db.QueryRow(ctx, createOrGetActiveSession,
 		arg.ID,
 		arg.ScenarioID,
 		arg.UserID,
-		arg.Status,
 		arg.StartedAt,
-		arg.FinishedAt,
 	)
-	var i OnboardingSession
-	err := row.Scan(
-		&i.ID,
-		&i.ScenarioID,
-		&i.UserID,
-		&i.Status,
-		&i.StartedAt,
-		&i.FinishedAt,
-	)
-	return i, err
-}
-
-const getSessionByScenarioAndUser = `-- name: GetSessionByScenarioAndUser :one
-SELECT id, scenario_id, user_id, status, started_at, finished_at
-FROM onboarding.sessions
-WHERE "scenario_id" = $1 AND "user_id" = $2
-`
-
-type GetSessionByScenarioAndUserParams struct {
-	ScenarioID uuid.UUID `json:"scenario_id"`
-	UserID     string    `json:"user_id"`
-}
-
-func (q *Queries) GetSessionByScenarioAndUser(ctx context.Context, arg GetSessionByScenarioAndUserParams) (OnboardingSession, error) {
-	row := q.db.QueryRow(ctx, getSessionByScenarioAndUser, arg.ScenarioID, arg.UserID)
 	var i OnboardingSession
 	err := row.Scan(
 		&i.ID,
