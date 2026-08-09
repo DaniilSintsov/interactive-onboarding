@@ -4,11 +4,10 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import { Alert, App, Button, Card, Skeleton, Tabs } from 'antd';
 import { adminApi } from '@/shared/api/admin-api';
-import { AnalyticsTab } from '@/features/analytics/ui/analytics-tab';
 import { ElementsTab } from '@/features/elements/ui/elements-tab';
 import { ScenariosTab } from '@/features/scenarios/ui/scenarios-tab';
 
-const tabKeys = new Set(['scenarios', 'elements', 'analytics']);
+const tabKeys = new Set(['scenarios', 'elements']);
 
 export function ProjectWorkspace({ projectId }: { projectId: string }) {
   const router = useRouter();
@@ -64,7 +63,6 @@ export function ProjectWorkspace({ projectId }: { projectId: string }) {
           items={[
             { key: 'scenarios', label: 'Сценарии', children: <ScenariosTab projectId={projectId} /> },
             { key: 'elements', label: 'Элементы', children: <ElementsTab projectId={projectId} /> },
-            { key: 'analytics', label: 'Аналитика', children: <AnalyticsTab projectId={projectId} /> },
           ]}
         />
       </Card>
