@@ -33,8 +33,8 @@ func TestIncorrectAdminToken(t *testing.T) {
 	recorder := httptest.NewRecorder()
 	adminMiddle.CheckAdminToken(next).ServeHTTP(recorder, req)
 
-	if recorder.Result().StatusCode != http.StatusForbidden {
-		t.Fatalf("Expected status code %d, but got %d", http.StatusForbidden, recorder.Result().StatusCode)
+	if recorder.Result().StatusCode != http.StatusUnauthorized {
+		t.Fatalf("Expected status code %d, but got %d", http.StatusUnauthorized, recorder.Result().StatusCode)
 	}
 }
 
@@ -57,8 +57,8 @@ func TestCheckAdminTokenRejectsMalformedAuthorizationHeader(t *testing.T) {
 			})
 			adminMiddle.CheckAdminToken(next).ServeHTTP(recorder, req)
 
-			if recorder.Code != http.StatusForbidden {
-				t.Fatalf("status = %d, want %d", recorder.Code, http.StatusForbidden)
+			if recorder.Code != http.StatusUnauthorized {
+				t.Fatalf("status = %d, want %d", recorder.Code, http.StatusUnauthorized)
 			}
 		})
 	}
