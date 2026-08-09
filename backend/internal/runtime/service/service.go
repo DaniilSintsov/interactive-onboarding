@@ -6,6 +6,7 @@ import (
 	"errors"
 	"time"
 
+	"github.com/DaniilSintsov/interactive-onboarding/backend/internal/platform/requestcontext"
 	runtimeModel "github.com/DaniilSintsov/interactive-onboarding/backend/internal/runtime/model"
 )
 
@@ -80,7 +81,7 @@ func (r *RuntimeService) FindScenarios(ctx context.Context, pagePattern, userId 
 		return response, nil
 	}
 
-	projectKey, ok := ctx.Value("projectKey").(string)
+	projectKey, ok := requestcontext.ProjectKey(ctx)
 	if !ok {
 		return nil, ErrProjectTokenIsNotValid
 	}
@@ -127,7 +128,7 @@ func (r *RuntimeService) FindScenarios(ctx context.Context, pagePattern, userId 
 }
 
 func (r *RuntimeService) checkTestToken(ctx context.Context, pagePattern string) (*runtimeModel.RuntimeScenario, error) {
-	testToken, ok := ctx.Value("testToken").(string)
+	testToken, ok := requestcontext.TestToken(ctx)
 	if !ok || testToken == "" {
 		return nil, errTestTokenIsEmpty
 	}
@@ -150,7 +151,7 @@ func (r *RuntimeService) checkTestToken(ctx context.Context, pagePattern string)
 }
 
 func (r *RuntimeService) validateProjectKey(ctx context.Context, scenarioId, pagePattern string) error {
-	projectKey, ok := ctx.Value("projectKey").(string)
+	projectKey, ok := requestcontext.ProjectKey(ctx)
 	if !ok {
 		return ErrProjectTokenIsNotValid
 	}

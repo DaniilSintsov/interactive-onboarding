@@ -4,12 +4,14 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/DaniilSintsov/interactive-onboarding/backend/internal/platform/requestcontext"
 )
 
 func TestExtractProjectKeySuccess(t *testing.T) {
 	expectedToken := "keyheadertoken"
 	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if got := r.Context().Value("projectKey"); got != expectedToken {
+		if got, _ := requestcontext.ProjectKey(r.Context()); got != expectedToken {
 			t.Errorf("testToken = %q, want %q", got, expectedToken)
 		}
 	})

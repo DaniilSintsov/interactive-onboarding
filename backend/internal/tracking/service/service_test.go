@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DaniilSintsov/interactive-onboarding/backend/internal/platform/requestcontext"
 	trackingModel "github.com/DaniilSintsov/interactive-onboarding/backend/internal/tracking/model"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -310,7 +311,7 @@ func mustParseTime(t *testing.T, value string) time.Time {
 }
 
 func testContext() context.Context {
-	return context.WithValue(context.Background(), "projectKey", "project-key")
+	return requestcontext.WithProjectKey(context.Background(), "project-key")
 }
 
 func newEventService(sessions *sessionFake, events *eventFake) *TrackingService {

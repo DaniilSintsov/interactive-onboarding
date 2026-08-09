@@ -51,7 +51,10 @@ func (t *transactorImpl) WithTx(
 		)
 		defer cancel()
 
-		_ = tx.Rollback(rollbackCtx)
+		rollbackErr := tx.Rollback(rollbackCtx)
+		if rollbackErr != nil && !errors.Is(rollbackErr, pgx.ErrTxClosed) {
+			err = fmt.Errorf("transactor - rollback tx: %w, error before rollback: %w", rollbackErr, err)
+		}
 	}()
 
 	ctx = injectTx(ctx, tx)

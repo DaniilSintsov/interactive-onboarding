@@ -89,8 +89,6 @@ func (service *projectService) Create(
 	var cycleErr error
 
 	for i := 0; i < maxProjectKeyAttempts; i++ {
-		cycleErr = nil
-
 		projectKey, err := service.projectKeyGenerator.Generate()
 		if err != nil {
 			cycleErr = service.wrapCreateError(err, params.Name)

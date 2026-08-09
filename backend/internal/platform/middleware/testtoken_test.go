@@ -4,6 +4,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/DaniilSintsov/interactive-onboarding/backend/internal/platform/requestcontext"
 )
 
 func TestExtractTestToken(t *testing.T) {
@@ -18,7 +20,7 @@ func TestExtractTestToken(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				if got := r.Context().Value("testToken"); got != tt.want {
+				if got, _ := requestcontext.TestToken(r.Context()); got != tt.want {
 					t.Errorf("testToken = %q, want %q", got, tt.want)
 				}
 			})
@@ -34,7 +36,7 @@ func TestExtractTestTokenAllowsMissingToken(t *testing.T) {
 	nextCalled := false
 	next := http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
 		nextCalled = true
-		if got := r.Context().Value("testToken"); got != "" {
+		if got, _ := requestcontext.TestToken(r.Context()); got != "" {
 			t.Errorf("testToken = %q, want empty string", got)
 		}
 	})

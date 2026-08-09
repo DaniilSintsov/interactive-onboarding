@@ -1,11 +1,11 @@
 package middleware
 
 import (
-	"context"
 	"net/http"
 	"strings"
 
 	"github.com/DaniilSintsov/interactive-onboarding/backend/internal/platform/httpserver"
+	"github.com/DaniilSintsov/interactive-onboarding/backend/internal/platform/requestcontext"
 )
 
 const (
@@ -19,7 +19,7 @@ func ExtractProjectKey(next http.Handler) http.Handler {
 			writeProjectKeyError(w, http.StatusForbidden, "project_key_required", "X-Project-Key header is required")
 			return
 		}
-		ctx := context.WithValue(r.Context(), "projectKey", projectKey)
+		ctx := requestcontext.WithProjectKey(r.Context(), projectKey)
 
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})

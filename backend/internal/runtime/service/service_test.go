@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DaniilSintsov/interactive-onboarding/backend/internal/platform/requestcontext"
 	runtimeModel "github.com/DaniilSintsov/interactive-onboarding/backend/internal/runtime/model"
 )
 
@@ -66,7 +67,7 @@ func TestFindScenariosReturnsTestScenarioWithoutNormalLookups(t *testing.T) {
 		ExpiresAt:  time.Now().Add(time.Hour),
 	}}
 	hasher := &tokenHasherFake{hash: []byte("hashed-token")}
-	ctx := context.WithValue(projectContext(), "testToken", token)
+	ctx := requestcontext.WithTestToken(projectContext(), token)
 
 	response, err := newRuntimeService(scenarios, sessions, steps, tokens, hasher).FindScenarios(ctx, "/any-page", "user-1")
 
@@ -131,7 +132,7 @@ func TestFindScenariosReturnsExpectedErrors(t *testing.T) {
 		},
 		{
 			name: "unknown test token",
-			ctx:  context.WithValue(projectContext(), "testToken", "token"),
+			ctx:  requestcontext.WithTestToken(projectContext(), "token"),
 			svc: newRuntimeService(&scenarioRepositoryFake{}, &sessionRepositoryFake{}, &stepRepositoryFake{},
 				&testTokensRepositoryFake{err: sql.ErrNoRows}, &tokenHasherFake{}),
 			want: ErrTestTokenInvalid,
@@ -202,7 +203,7 @@ func TestFindScenariosValidatesTestToken(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ctx := context.WithValue(projectContext(), "testToken", "token")
+			ctx := requestcontext.WithTestToken(projectContext(), "token")
 			svc := newRuntimeService(tt.scenarios, &sessionRepositoryFake{}, &stepRepositoryFake{}, tt.tokens, &tokenHasherFake{})
 
 			_, err := svc.FindScenarios(ctx, "/home", "user-1")
@@ -214,7 +215,7 @@ func TestFindScenariosValidatesTestToken(t *testing.T) {
 }
 
 func projectContext() context.Context {
-	return context.WithValue(context.Background(), "projectKey", "project-key")
+	return requestcontext.WithProjectKey(context.Background(), "project-key")
 }
 
 func timePtr(value time.Time) *time.Time {

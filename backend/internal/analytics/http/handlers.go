@@ -1,7 +1,6 @@
 package analyticshttp
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -20,11 +19,9 @@ func NewAnalyticsHandler(svc *service.AnalyticsService) *AnalyticsHandler {
 }
 
 func writeJSONError(w http.ResponseWriter, status int, code, message string) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(status)
-	json.NewEncoder(w).Encode(map[string]string{
-		"code":    code,
-		"message": message,
+	httpserver.WriteJSON(w, status, httpserver.ErrorResponse{
+		Code:    code,
+		Message: message,
 	})
 }
 

@@ -2,7 +2,6 @@ package pdfhttp
 
 import (
 	"bytes"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -22,11 +21,9 @@ func NewPDFHandler(svc *service.AnalyticsService) *PDFHandler {
 }
 
 func writeJSONError(w http.ResponseWriter, status int, code, message string) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(status)
-	json.NewEncoder(w).Encode(map[string]string{
-		"code":    code,
-		"message": message,
+	httpserver.WriteJSON(w, status, httpserver.ErrorResponse{
+		Code:    code,
+		Message: message,
 	})
 }
 
@@ -64,14 +61,6 @@ func (h *PDFHandler) GenerateScenarioPDFReport(w http.ResponseWriter, r *http.Re
 	if _, err := w.Write(pdfData); err != nil {
 		return
 	}
-}
-
-func truncateString(s string, maxRunes int) string {
-	runes := []rune(s)
-	if len(runes) <= maxRunes {
-		return s
-	}
-	return string(runes[:maxRunes]) + "..."
 }
 
 func generatePDF(data service.DetailedScenarioAnalytics) ([]byte, error) {

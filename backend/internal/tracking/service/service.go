@@ -9,6 +9,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/DaniilSintsov/interactive-onboarding/backend/internal/platform/requestcontext"
 	trackingModel "github.com/DaniilSintsov/interactive-onboarding/backend/internal/tracking/model"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -235,7 +236,7 @@ func (s *TrackingService) validateProjectKey(ctx context.Context, scenarioId str
 }
 
 func projectKeyFromContext(ctx context.Context) (string, error) {
-	projectKey, ok := ctx.Value("projectKey").(string)
+	projectKey, ok := requestcontext.ProjectKey(ctx)
 	if !ok || projectKey == "" {
 		return "", ErrProjectKeyInvalid
 	}

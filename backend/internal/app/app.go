@@ -227,7 +227,7 @@ func runHTTPServer(ctx context.Context, logger *zap.Logger, cfg *config.Config, 
 	case <-ctx.Done():
 	}
 
-	shutdownCtx, cancel := context.WithTimeout(context.Background(), cfg.HTTPConfig.HTTPShutdownTime)
+	shutdownCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), cfg.HTTPConfig.HTTPShutdownTime)
 	defer cancel()
 
 	logger.Info("shutting down http server")
