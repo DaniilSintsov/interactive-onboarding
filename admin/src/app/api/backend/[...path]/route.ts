@@ -16,6 +16,8 @@ async function proxy(
   }
 
   try {
+    const adminToken = process.env.ADMIN_TOKEN?.trim();
+    if (!adminToken) throw new Error('ADMIN_TOKEN is required');
     const { path } = await context.params;
     const upstream = await fetch(buildBackendUrl(path, request.nextUrl.search), {
       method: request.method,
@@ -24,6 +26,7 @@ async function proxy(
         ...(request.headers.get('content-type')
           ? { 'content-type': request.headers.get('content-type') as string }
           : {}),
+        authorization: `Bearer ${adminToken}`,
       },
       body: request.method === 'GET' || request.method === 'HEAD' ? undefined : await request.arrayBuffer(),
       cache: 'no-store',

@@ -17,14 +17,14 @@ services:
       POSTGRES_DB: onboarding
       POSTGRES_USER: onboarding_user
       POSTGRES_PASSWORD: "12345"
-      ADMIN_TOKEN: "admintoken"
+      ADMIN_TOKEN: ${ADMIN_TOKEN:-admintoken}
     ports:
       - "127.0.0.1:8080:8080"
     depends_on:
       db:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/api/v1/projects?limit=1"]
+      test: ["CMD-SHELL", "wget -q -O /dev/null --header=\"Authorization: Bearer $${ADMIN_TOKEN}\" 'http://127.0.0.1:8080/api/v1/projects?limit=1'"]
       interval: 2s
       timeout: 3s
       retries: 15
@@ -43,6 +43,8 @@ services:
       - --backend-url=http://onboarding-backend:8080
       - --project-key=${NEXT_PUBLIC_PROJECT_KEY:-pk_demo_avito}
       - --revision=${CI_COMMIT_SHA:-local}
+    environment:
+      ADMIN_TOKEN: ${ADMIN_TOKEN:-admintoken}
     depends_on:
       onboarding-backend:
         condition: service_healthy
@@ -83,6 +85,7 @@ services:
         NEXT_PUBLIC_PREVIEW_URL: ${NEXT_PUBLIC_PREVIEW_URL:-http://localhost:3000}
     environment:
       ADMIN_API_URL: http://onboarding-backend:8080
+      ADMIN_TOKEN: ${ADMIN_TOKEN:-admintoken}
       ADMIN_PASSWORD_HASH: ${ADMIN_PASSWORD_HASH:?ADMIN_PASSWORD_HASH is required}
       SESSION_SECRET: ${SESSION_SECRET:?SESSION_SECRET is required}
     ports:

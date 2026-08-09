@@ -167,12 +167,19 @@ function elementPayload(element) {
   return { key: element.key, label: element.label, description: element.description };
 }
 
+function adminAuthorization(token = process.env.ADMIN_TOKEN) {
+  const normalized = String(token ?? "").trim();
+  if (!normalized) throw new Error("ADMIN_TOKEN is required");
+  return `Bearer ${normalized}`;
+}
+
 async function request(backendUrl, requestPath, init) {
   const response = await fetch(`${backendUrl}/api/v1${requestPath}`, {
     ...init,
     headers: {
       ...(init?.body ? { "content-type": "application/json" } : {}),
       ...init?.headers,
+      authorization: adminAuthorization(),
     },
   });
   if (!response.ok) {
@@ -261,6 +268,8 @@ function selfTest() {
     stale: [{ id: "1", key: "old", label: "Old", description: "" }],
   });
   assert.equal(normalizeBackendUrl("http://localhost:8080/"), "http://localhost:8080");
+  assert.equal(adminAuthorization(" admintoken "), "Bearer admintoken");
+  assert.throws(() => adminAuthorization(""), /ADMIN_TOKEN is required/);
   console.log("onboarding-sync self-test passed");
 }
 
