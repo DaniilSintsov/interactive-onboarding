@@ -50,10 +50,8 @@ func mapError(err error) httpserver.ErrorMapping {
 		return httpserver.NewErrorMapping(http.StatusBadRequest, "invalid_step_id", "step ID is required", false)
 	case errors.Is(err, scenarioerrs.ErrStepTitleRequired):
 		return httpserver.NewValidationErrorMapping("step_title_required", "step title is required", "title")
-	case errors.Is(err, scenarioerrs.ErrStepDescriptionRequired):
-		return httpserver.NewValidationErrorMapping("step_description_required", "step description is required", "description")
 	case errors.Is(err, scenarioerrs.ErrInvalidStepNumber):
-		return httpserver.NewValidationErrorMapping("invalid_step_number", "step number must be greater than zero", "step_num")
+		return httpserver.NewValidationErrorMapping("invalid_step_number", "step number must be between 1 and 2147483647", "step_num")
 	case errors.Is(err, scenarioerrs.ErrStepTitleTooLong):
 		return httpserver.NewValidationErrorMapping("step_title_too_long", "step title is too long", "title")
 	case errors.Is(err, scenarioerrs.ErrStepDescriptionTooLong):

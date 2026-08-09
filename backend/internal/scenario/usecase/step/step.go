@@ -126,6 +126,7 @@ func (service *stepService) Create(
 	if err != nil {
 		if errors.Is(err, errs.ErrScenarioNotFound) ||
 			errors.Is(err, errs.ErrScenarioImmutable) ||
+			errors.Is(err, errs.ErrInvalidStepNumber) ||
 			errors.Is(err, errs.ErrStepNumberAlreadyExists) ||
 			errors.Is(err, projecterrs.ErrElementNotFound) {
 			return entity.Step{}, err
@@ -257,6 +258,7 @@ func (service *stepService) Reorder(
 	if err != nil {
 		if errors.Is(err, errs.ErrScenarioNotFound) ||
 			errors.Is(err, errs.ErrScenarioImmutable) ||
+			errors.Is(err, errs.ErrInvalidStepNumber) ||
 			errors.Is(err, errs.ErrStepDoesNotBelongToScenario) {
 			return nil, err
 		}
@@ -320,9 +322,6 @@ func normalizeAndValidateUpdateParams(params port.UpdateStepParams) (port.Update
 
 	if params.Description != nil {
 		description := strings.TrimSpace(*params.Description)
-		if description == "" {
-			return port.UpdateStepParams{}, errs.ErrStepDescriptionRequired
-		}
 		if utf8.RuneCountInString(description) > entity.MaxStepDescriptionLength {
 			return port.UpdateStepParams{}, errs.ErrStepDescriptionTooLong
 		}

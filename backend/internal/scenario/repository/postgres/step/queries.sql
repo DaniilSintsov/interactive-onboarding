@@ -77,8 +77,8 @@ SELECT EXISTS (
       AND s.deleted_at IS NULL
 ) AS is_used;
 
--- name: GetNextStepNumber :one
-SELECT (COALESCE(MAX(step_num), 0) + 1)::integer
+-- name: GetMaxStepNumber :one
+SELECT COALESCE(MAX(step_num), 0)::integer AS max_step_number
 FROM onboarding.steps
 WHERE scenario_id = sqlc.arg(scenario_id)
   AND deleted_at IS NULL;

@@ -52,6 +52,10 @@ func (repo *stepRepository) Create(
 	ctx context.Context,
 	step entity.Step,
 ) (entity.Step, error) {
+	if step.StepNum < 1 || step.StepNum > entity.MaxStepNumber {
+		return entity.Step{}, errs.ErrInvalidStepNumber
+	}
+
 	row, err := repo.getQueries(ctx).CreateStep(ctx, sqlc.CreateStepParams{
 		ScenarioID:   step.ScenarioID,
 		ElementID:    step.ElementID,
@@ -214,12 +218,15 @@ func (repo *stepRepository) GetNextNumber(
 	ctx context.Context,
 	scenarioID uuid.UUID,
 ) (int, error) {
-	number, err := repo.getQueries(ctx).GetNextStepNumber(ctx, scenarioID)
+	maxStepNumber, err := repo.getQueries(ctx).GetMaxStepNumber(ctx, scenarioID)
 	if err != nil {
 		return 0, fmt.Errorf("step repository - get next number: %w", err)
 	}
+	if maxStepNumber >= entity.MaxStepNumber {
+		return 0, errs.ErrInvalidStepNumber
+	}
 
-	return int(number), nil
+	return int(maxStepNumber) + 1, nil
 }
 
 func (repo *stepRepository) LockActive(
@@ -255,18 +262,22 @@ func (repo *stepRepository) LockActive(
 func (repo *stepRepository) LockActiveIDsByScenarioID(
 	ctx context.Context,
 	scenarioID uuid.UUID,
-) ([]uuid.UUID, error) {
+) ([]uuid.UUID, int32, error) {
 	rows, err := repo.getQueries(ctx).LockActiveStepsByScenarioID(ctx, scenarioID)
 	if err != nil {
-		return nil, fmt.Errorf("step repository - lock active by scenario id: %w", err)
+		return nil, 0, fmt.Errorf("step repository - lock active by scenario id: %w", err)
 	}
 
 	stepIDs := make([]uuid.UUID, 0, len(rows))
+	var maxStepNumber int32
 	for _, row := range rows {
 		stepIDs = append(stepIDs, row.ID)
+		if row.StepNum > maxStepNumber {
+			maxStepNumber = row.StepNum
+		}
 	}
 
-	return stepIDs, nil
+	return stepIDs, maxStepNumber, nil
 }
 
 func (repo *stepRepository) Reorder(
@@ -274,13 +285,20 @@ func (repo *stepRepository) Reorder(
 	scenarioID uuid.UUID,
 	orderedStepIDs []uuid.UUID,
 ) error {
+	if len(orderedStepIDs) > entity.MaxStepNumber {
+		return errs.ErrInvalidStepNumber
+	}
+
 	err := repo.transactor.WithTx(ctx, func(ctx context.Context) error {
-		activeStepIDs, err := repo.LockActiveIDsByScenarioID(ctx, scenarioID)
+		activeStepIDs, maxStepNumber, err := repo.LockActiveIDsByScenarioID(ctx, scenarioID)
 		if err != nil {
 			return fmt.Errorf("lock active steps: %w", err)
 		}
 		if !sameStepIDs(activeStepIDs, orderedStepIDs) {
 			return errs.ErrStepDoesNotBelongToScenario
+		}
+		if int64(maxStepNumber)*2 > int64(entity.MaxStepNumber) {
+			return errs.ErrInvalidStepNumber
 		}
 
 		queries := repo.getQueries(ctx)

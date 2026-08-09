@@ -1045,7 +1045,6 @@ components:
       type: object
       required:
         - name
-        - elements
       additionalProperties: false
       properties:
         name:
@@ -1054,10 +1053,11 @@ components:
           maxLength: 255
         elements:
           type: array
+          default: []
           items:
             $ref: '#/components/schemas/CreateElementInput'
-          description: Начальный список элементов интерфейса проекта. Может быть пустым; элементы можно добавить позднее
-            отдельной ручкой.
+          description: Необязательный начальный список элементов интерфейса проекта. Если поле отсутствует, проект создаётся
+            без элементов; элементы можно добавить позднее отдельной ручкой.
     UpdateProjectRequest:
       type: object
       minProperties: 1
@@ -1254,12 +1254,13 @@ components:
       required:
         - element_id
         - title
-        - description
       additionalProperties: false
       properties:
         step_num:
           type: integer
+          format: int32
           minimum: 1
+          maximum: 2147483647
           description: Если не передан, шаг добавляется в конец.
         title:
           type: string
@@ -1267,8 +1268,8 @@ components:
           maxLength: 255
         description:
           type: string
-          minLength: 1
           maxLength: 2000
+          default: ''
         frontend_data:
           $ref: '#/components/schemas/FrontendStepData'
         element_id:
@@ -1286,7 +1287,6 @@ components:
           maxLength: 255
         description:
           type: string
-          minLength: 1
           maxLength: 2000
         frontend_data:
           $ref: '#/components/schemas/FrontendStepData'
@@ -1327,7 +1327,9 @@ components:
           format: uuid
         step_num:
           type: integer
+          format: int32
           minimum: 1
+          maximum: 2147483647
         title:
           type: string
         description:
@@ -1433,7 +1435,9 @@ components:
           format: uuid
         step_num:
           type: integer
+          format: int32
           minimum: 1
+          maximum: 2147483647
         title:
           type: string
         description:

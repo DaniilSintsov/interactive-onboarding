@@ -126,15 +126,16 @@ func (repo *projectRepository) List(
 	projects := make([]entity.Project, 0, len(rows))
 	var total int64
 
-	for i, row := range rows {
-		if i == 0 {
-			total = row.Total
+	for _, row := range rows {
+		total = row.Total
+		if !row.ID.Valid {
+			continue
 		}
 
 		projects = append(projects, entity.Project{
-			ID:         row.ID,
-			Name:       row.Name,
-			ProjectKey: row.ProjectKey,
+			ID:         uuid.UUID(row.ID.Bytes),
+			Name:       row.Name.String,
+			ProjectKey: row.ProjectKey.String,
 			CreatedAt:  row.CreatedAt.Time.UTC(),
 			UpdatedAt:  row.UpdatedAt.Time.UTC(),
 		})

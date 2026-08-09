@@ -139,18 +139,18 @@ func (q *Queries) DeleteStep(ctx context.Context, arg DeleteStepParams) (DeleteS
 	return i, err
 }
 
-const getNextStepNumber = `-- name: GetNextStepNumber :one
-SELECT (COALESCE(MAX(step_num), 0) + 1)::integer
+const getMaxStepNumber = `-- name: GetMaxStepNumber :one
+SELECT COALESCE(MAX(step_num), 0)::integer AS max_step_number
 FROM onboarding.steps
 WHERE scenario_id = $1
   AND deleted_at IS NULL
 `
 
-func (q *Queries) GetNextStepNumber(ctx context.Context, scenarioID uuid.UUID) (int32, error) {
-	row := q.db.QueryRow(ctx, getNextStepNumber, scenarioID)
-	var column_1 int32
-	err := row.Scan(&column_1)
-	return column_1, err
+func (q *Queries) GetMaxStepNumber(ctx context.Context, scenarioID uuid.UUID) (int32, error) {
+	row := q.db.QueryRow(ctx, getMaxStepNumber, scenarioID)
+	var max_step_number int32
+	err := row.Scan(&max_step_number)
+	return max_step_number, err
 }
 
 const getStepByID = `-- name: GetStepByID :one

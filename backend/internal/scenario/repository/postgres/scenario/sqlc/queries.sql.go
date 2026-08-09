@@ -234,32 +234,55 @@ func (q *Queries) GetScenarioByID(ctx context.Context, scenarioID uuid.UUID) (Ge
 }
 
 const listScenariosByProjectID = `-- name: ListScenariosByProjectID :many
-SELECT s.id,
-       s.project_id,
-       s.name,
-       s.description,
-       s.page_pattern,
-       s.status,
-       s.published_at,
-       s.created_at,
-       s.updated_at,
-       (
-           SELECT COUNT(*)::bigint
-           FROM onboarding.steps AS st
-           WHERE st.scenario_id = s.id
-             AND st.deleted_at IS NULL
-       ) AS steps_count,
-       COUNT(*) OVER ()::bigint AS total
-FROM onboarding.scenarios AS s
-WHERE s.project_id = $1
-  AND s.deleted_at IS NULL
-  AND (
-      $2::text IS NULL
-      OR s.status::text = $2::text
-  )
-ORDER BY s.created_at DESC, s.id DESC
-LIMIT $4::integer
-OFFSET $3::integer
+WITH filtered AS (
+    SELECT s.id,
+           s.project_id,
+           s.name,
+           s.description,
+           s.page_pattern,
+           s.status,
+           s.published_at,
+           s.created_at,
+           s.updated_at,
+           (
+               SELECT COUNT(*)::bigint
+               FROM onboarding.steps AS st
+               WHERE st.scenario_id = s.id
+                 AND st.deleted_at IS NULL
+           ) AS steps_count
+    FROM onboarding.scenarios AS s
+    WHERE s.project_id = $1
+      AND s.deleted_at IS NULL
+      AND (
+          $2::text IS NULL
+          OR s.status::text = $2::text
+      )
+),
+total AS (
+    SELECT COUNT(*)::bigint AS value
+    FROM filtered
+),
+page AS (
+    SELECT id, project_id, name, description, page_pattern, status, published_at, created_at, updated_at, steps_count
+    FROM filtered
+    ORDER BY created_at DESC, id DESC
+    LIMIT $4::integer
+    OFFSET $3::integer
+)
+SELECT page.id,
+       page.project_id,
+       page.name,
+       page.description,
+       page.page_pattern,
+       page.status,
+       page.published_at,
+       page.created_at,
+       page.updated_at,
+       page.steps_count,
+       total.value AS total
+FROM total
+LEFT JOIN page ON TRUE
+ORDER BY page.created_at DESC NULLS LAST, page.id DESC NULLS LAST
 `
 
 type ListScenariosByProjectIDParams struct {
@@ -270,17 +293,17 @@ type ListScenariosByProjectIDParams struct {
 }
 
 type ListScenariosByProjectIDRow struct {
-	ID          uuid.UUID                `json:"id"`
-	ProjectID   uuid.UUID                `json:"project_id"`
-	Name        string                   `json:"name"`
-	Description string                   `json:"description"`
-	PagePattern string                   `json:"page_pattern"`
-	Status      OnboardingScenarioStatus `json:"status"`
-	PublishedAt pgtype.Timestamptz       `json:"published_at"`
-	CreatedAt   pgtype.Timestamptz       `json:"created_at"`
-	UpdatedAt   pgtype.Timestamptz       `json:"updated_at"`
-	StepsCount  int64                    `json:"steps_count"`
-	Total       int64                    `json:"total"`
+	ID          pgtype.UUID                  `json:"id"`
+	ProjectID   pgtype.UUID                  `json:"project_id"`
+	Name        pgtype.Text                  `json:"name"`
+	Description pgtype.Text                  `json:"description"`
+	PagePattern pgtype.Text                  `json:"page_pattern"`
+	Status      NullOnboardingScenarioStatus `json:"status"`
+	PublishedAt pgtype.Timestamptz           `json:"published_at"`
+	CreatedAt   pgtype.Timestamptz           `json:"created_at"`
+	UpdatedAt   pgtype.Timestamptz           `json:"updated_at"`
+	StepsCount  pgtype.Int8                  `json:"steps_count"`
+	Total       int64                        `json:"total"`
 }
 
 func (q *Queries) ListScenariosByProjectID(ctx context.Context, arg ListScenariosByProjectIDParams) ([]ListScenariosByProjectIDRow, error) {

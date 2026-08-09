@@ -22,32 +22,55 @@ RETURNING id,
           updated_at;
 
 -- name: ListScenariosByProjectID :many
-SELECT s.id,
-       s.project_id,
-       s.name,
-       s.description,
-       s.page_pattern,
-       s.status,
-       s.published_at,
-       s.created_at,
-       s.updated_at,
-       (
-           SELECT COUNT(*)::bigint
-           FROM onboarding.steps AS st
-           WHERE st.scenario_id = s.id
-             AND st.deleted_at IS NULL
-       ) AS steps_count,
-       COUNT(*) OVER ()::bigint AS total
-FROM onboarding.scenarios AS s
-WHERE s.project_id = sqlc.arg(project_id)
-  AND s.deleted_at IS NULL
-  AND (
-      sqlc.narg(status)::text IS NULL
-      OR s.status::text = sqlc.narg(status)::text
-  )
-ORDER BY s.created_at DESC, s.id DESC
-LIMIT sqlc.arg(page_limit)::integer
-OFFSET sqlc.arg(page_offset)::integer;
+WITH filtered AS (
+    SELECT s.id,
+           s.project_id,
+           s.name,
+           s.description,
+           s.page_pattern,
+           s.status,
+           s.published_at,
+           s.created_at,
+           s.updated_at,
+           (
+               SELECT COUNT(*)::bigint
+               FROM onboarding.steps AS st
+               WHERE st.scenario_id = s.id
+                 AND st.deleted_at IS NULL
+           ) AS steps_count
+    FROM onboarding.scenarios AS s
+    WHERE s.project_id = sqlc.arg(project_id)
+      AND s.deleted_at IS NULL
+      AND (
+          sqlc.narg(status)::text IS NULL
+          OR s.status::text = sqlc.narg(status)::text
+      )
+),
+total AS (
+    SELECT COUNT(*)::bigint AS value
+    FROM filtered
+),
+page AS (
+    SELECT *
+    FROM filtered
+    ORDER BY created_at DESC, id DESC
+    LIMIT sqlc.arg(page_limit)::integer
+    OFFSET sqlc.arg(page_offset)::integer
+)
+SELECT page.id,
+       page.project_id,
+       page.name,
+       page.description,
+       page.page_pattern,
+       page.status,
+       page.published_at,
+       page.created_at,
+       page.updated_at,
+       page.steps_count,
+       total.value AS total
+FROM total
+LEFT JOIN page ON TRUE
+ORDER BY page.created_at DESC NULLS LAST, page.id DESC NULLS LAST;
 
 -- name: GetScenarioByID :one
 SELECT s.id,

@@ -7,7 +7,6 @@ var (
 	ErrStepScenarioIDRequired   = errors.New("step scenario id is required")
 	ErrStepIDRequired           = errors.New("step id is required")
 	ErrStepTitleRequired        = errors.New("step title is required")
-	ErrStepDescriptionRequired  = errors.New("step description is required")
 	ErrInvalidStepNumber        = errors.New("step number is invalid")
 	ErrStepTitleTooLong         = errors.New("step title is too long")
 	ErrStepDescriptionTooLong   = errors.New("step description is too long")

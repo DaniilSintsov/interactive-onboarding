@@ -142,24 +142,25 @@ func (repo *scenarioRepository) ListByProjectID(
 	scenarios := make([]port.ScenarioSummary, 0, len(rows))
 	var total int64
 
-	for i, row := range rows {
-		if i == 0 {
-			total = row.Total
+	for _, row := range rows {
+		total = row.Total
+		if !row.ID.Valid {
+			continue
 		}
 
 		scenarios = append(scenarios, port.ScenarioSummary{
 			Scenario: entity.Scenario{
-				ID:          row.ID,
-				ProjectID:   row.ProjectID,
-				Name:        row.Name,
-				Description: row.Description,
-				PagePattern: row.PagePattern,
-				Status:      entity.ScenarioStatus(row.Status),
+				ID:          uuid.UUID(row.ID.Bytes),
+				ProjectID:   uuid.UUID(row.ProjectID.Bytes),
+				Name:        row.Name.String,
+				Description: row.Description.String,
+				PagePattern: row.PagePattern.String,
+				Status:      entity.ScenarioStatus(row.Status.OnboardingScenarioStatus),
 				PublishedAt: timePtr(row.PublishedAt),
 				CreatedAt:   row.CreatedAt.Time.UTC(),
 				UpdatedAt:   row.UpdatedAt.Time.UTC(),
 			},
-			StepsCount: row.StepsCount,
+			StepsCount: row.StepsCount.Int64,
 		})
 	}
 

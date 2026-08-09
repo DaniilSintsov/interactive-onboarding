@@ -102,12 +102,31 @@ func (q *Queries) GetProjectIDByKey(ctx context.Context, projectKey string) (uui
 }
 
 const listProjects = `-- name: ListProjects :many
-SELECT id, name, project_key, created_at, updated_at, COUNT(*) OVER ()::bigint AS total
-FROM onboarding.projects
-WHERE deleted_at IS NULL
-ORDER BY created_at DESC, id DESC
-LIMIT $2::integer
-OFFSET $1::integer
+WITH filtered AS (
+    SELECT id, name, project_key, created_at, updated_at
+    FROM onboarding.projects
+    WHERE deleted_at IS NULL
+),
+total AS (
+    SELECT COUNT(*)::bigint AS value
+    FROM filtered
+),
+page AS (
+    SELECT id, name, project_key, created_at, updated_at
+    FROM filtered
+    ORDER BY created_at DESC, id DESC
+    LIMIT $2::integer
+    OFFSET $1::integer
+)
+SELECT page.id,
+       page.name,
+       page.project_key,
+       page.created_at,
+       page.updated_at,
+       total.value AS total
+FROM total
+LEFT JOIN page ON TRUE
+ORDER BY page.created_at DESC NULLS LAST, page.id DESC NULLS LAST
 `
 
 type ListProjectsParams struct {
@@ -116,9 +135,9 @@ type ListProjectsParams struct {
 }
 
 type ListProjectsRow struct {
-	ID         uuid.UUID          `json:"id"`
-	Name       string             `json:"name"`
-	ProjectKey string             `json:"project_key"`
+	ID         pgtype.UUID        `json:"id"`
+	Name       pgtype.Text        `json:"name"`
+	ProjectKey pgtype.Text        `json:"project_key"`
 	CreatedAt  pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt  pgtype.Timestamptz `json:"updated_at"`
 	Total      int64              `json:"total"`
