@@ -77,7 +77,7 @@ func (s *TrackingService) StartSession(ctx context.Context, session *trackingMod
 		return nil, invalid("user_id must contain from 1 to 255 characters")
 	}
 
-	err := s.validateProjectKey(ctx, session.ScenarioID)
+	err := s.validateProjectKey(ctx, session.ScenarioID, true)
 	if err != nil {
 		return nil, err
 	}
@@ -127,7 +127,7 @@ func (s *TrackingService) CreateEvent(ctx context.Context, event *trackingModel.
 		return nil, ErrSessionNotActive
 	}
 
-	err = s.validateProjectKey(ctx, session.ScenarioID)
+	err = s.validateProjectKey(ctx, session.ScenarioID, false)
 	if err != nil {
 		return nil, err
 	}
@@ -215,7 +215,7 @@ func (s *TrackingService) lookupEvent(
 	return existing, true, nil
 }
 
-func (s *TrackingService) validateProjectKey(ctx context.Context, scenarioId string) error {
+func (s *TrackingService) validateProjectKey(ctx context.Context, scenarioId string, enableCheck bool) error {
 	projectKey, err := projectKeyFromContext(ctx)
 	if err != nil {
 		return err
@@ -228,7 +228,7 @@ func (s *TrackingService) validateProjectKey(ctx context.Context, scenarioId str
 			return err
 		}
 	}
-	if scenario.Status != trackingModel.ScenarioStatusEnabled {
+	if enableCheck && scenario.Status != trackingModel.ScenarioStatusEnabled {
 		return invalid("scenario is not enabled")
 	}
 	return nil
@@ -253,6 +253,10 @@ func validateEvent(event *trackingModel.CreateEventRequest) (time.Time, error) {
 		return time.Time{}, invalid("session_id must be a UUID")
 	}
 	if event.StepID != nil {
+		if event.Type == trackingModel.EventTypeOnboardingSkipped ||
+			event.Type == trackingModel.EventTypeOnboardingCompleted {
+			return time.Time{}, invalid("step_id is unnecessary")
+		}
 		if _, err := uuid.Parse(*event.StepID); err != nil {
 			return time.Time{}, invalid("step_id must be a UUID")
 		}

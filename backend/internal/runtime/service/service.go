@@ -10,11 +10,12 @@ import (
 )
 
 var (
-	errTestTokenIsEmpty       = errors.New("test token is empty")
-	ErrScenarioNotFound       = errors.New("scenario was not found")
-	ErrTestTokenInvalid       = errors.New("test token is invalid")
-	ErrProjectTokenIsNotValid = errors.New("project token is not valid")
-	ErrPageMismatch           = errors.New("page belongs to another scenario")
+	errTestTokenIsEmpty             = errors.New("test token is empty")
+	ErrScenarioNotFound             = errors.New("scenario was not found")
+	ErrTestTokenInvalid             = errors.New("test token is invalid")
+	ErrProjectTokenIsNotValid       = errors.New("project token is not valid")
+	ErrPageMismatch                 = errors.New("page belongs to another scenario")
+	ErrInvalidScenarioConfiguration = errors.New("scenario does not contain any steps")
 )
 
 type (
@@ -64,11 +65,16 @@ func NewRuntimeService(
 }
 
 func (r *RuntimeService) FindScenarios(ctx context.Context, pagePattern, userId string) (*runtimeModel.RuntimeScenarioResolveResponse, error) {
-	response := new(runtimeModel.RuntimeScenarioResolveResponse)
+	response := &runtimeModel.RuntimeScenarioResolveResponse{
+		Scenarios: make([]runtimeModel.RuntimeScenario, 0),
+	}
 	testScenario, err := r.checkTestToken(ctx, pagePattern)
 	if err != nil && !errors.Is(err, errTestTokenIsEmpty) {
 		return nil, err
 	} else if err == nil {
+		if len(testScenario.Steps) < 1 {
+			return nil, ErrInvalidScenarioConfiguration
+		}
 		response.IsTest = true
 		response.Scenarios = []runtimeModel.RuntimeScenario{*testScenario}
 		return response, nil
@@ -92,29 +98,29 @@ func (r *RuntimeService) FindScenarios(ctx context.Context, pagePattern, userId 
 		return nil, err
 	}
 
-	for i := 0; i < len(scenarios); i++ {
-		session, err := r.session.GetSessionByScenarioAndUser(ctx, scenarios[i].ID, userId)
+	sixMonthsAgo := time.Now().AddDate(0, -6, 0)
+	filtered := scenarios[:0]
+	for _, scenario := range scenarios {
+		session, err := r.session.GetSessionByScenarioAndUser(ctx, scenario.ID, userId)
 		if err == nil {
-			if session.Status != runtimeModel.SessionStatusActive {
-				sixMonthsAgo := time.Now().AddDate(0, -6, 0)
-				if session.FinishedAt.Before(sixMonthsAgo) {
-					continue
-				}
-				scenarios[i] = scenarios[len(scenarios)-1]
-				scenarios = scenarios[:len(scenarios)-1]
-				i--
+			if session.Status != runtimeModel.SessionStatusActive &&
+				(session.FinishedAt == nil || session.FinishedAt.After(sixMonthsAgo)) {
+				continue
 			}
 		} else if !errors.Is(err, sql.ErrNoRows) {
 			return nil, err
 		}
+		filtered = append(filtered, scenario)
 	}
 
-	for i := range scenarios {
-		runtimeScenario, err := r.steps.GetStepsByScenarioId(ctx, scenarios[i].ID)
+	for i := range filtered {
+		runtimeScenario, err := r.steps.GetStepsByScenarioId(ctx, filtered[i].ID)
 		if err != nil {
 			return nil, err
 		}
-		response.Scenarios = append(response.Scenarios, *runtimeScenario)
+		if len(runtimeScenario.Steps) >= 1 {
+			response.Scenarios = append(response.Scenarios, *runtimeScenario)
+		}
 	}
 
 	return response, nil
