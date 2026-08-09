@@ -55,8 +55,8 @@ MVP платформы интерактивного онбординга для 
 | SDK | TypeScript, встраиваемый виджет |
 | API | OpenAPI 3.0.3, REST |
 | Деплой | Docker Compose |
-| Линтер | golangci-lint, ESLint, Prettier |
-| Тесты | go test, Jest |
+| Линтер | golangci-lint |
+| Тесты | go test |
 
 ---
 
@@ -95,29 +95,18 @@ interactive-onboarding/
 
 **1. Клонировать репозиторий**
 
+```bash
 git clone https://github.com/DaniilSintsov/interactive-onboarding.git
 cd interactive-onboarding
+```
 
 **2. Поднять сервисы через Docker Compose**
 
-docker-compose up -d
+```bash
+docker-compose up -d --build
+```
 
-**3. Применить миграции**
-
-cd backend
-goose -dir migrations postgres "postgres://..." up
-
-**4. Запустить backend**
-
-go run cmd/main.go
-
-**5. Запустить frontend**
-
-cd frontend
-npm install
-npm run dev
-
-**6. Открыть в браузере**
+**3. Открыть в браузере**
 
 - Админка: http://localhost:5173
 - API: http://localhost:8080
@@ -139,8 +128,8 @@ npm run dev
 ### Публичные (/api/v1/sdk/)
 
 - resolve — поиск сценария для SDK
-- sessions — создание сессии
-- events — приём событий
+- sessions — создание сессии прохождения сценария
+- events — приём событий прохождения сценария
 
 
 ## 📊 Аналитика и отчёты
@@ -167,8 +156,7 @@ npm run dev
 | Игорь | Backend Developer | Runtime, Tracking |
 | Кирилл | Backend Developer / Team Lead | Project, Scenario, Platform, Integration |
 | Андрей | Backend Developer | Analytics, PDF Report |
-| Даниил | Frontend Developer | React-админка, тестовый сайт |
-| Команда | Fullstack | SDK / Виджет |
+| Даниил | Frontend Developer | React-админка, тестовый сайт, SDK / Виджет |
 
 
 ### Вклад каждого участника
@@ -176,8 +164,7 @@ npm run dev
 **Игорь (Backend, Runtime + Tracking)**
 
 - Разработал Runtime API: поиск и выдача подходящего сценария для SDK
-- Разработал Tracking: создание сессий, приём идемпотентных событий
-- Реализовал семантику событий (step_shown, step_completed, step_skipped, onboarding_completed, onboarding_skipped)
+- Разработал Tracking: отслеживание прохождения онбординга 
 
 **Кирилл (Backend, Project + Scenario + Platform)**
 
@@ -207,14 +194,17 @@ npm run dev
 
 **Backend**
 
+```bash
 cd backend
 go test ./...
+```
 
 **Frontend**
 
+```bash
 cd frontend
 npm run test
-
+```
 
 ## 📄 Документация
 
@@ -265,4 +255,3 @@ npm run test
 - Поддержка нескольких языков
 - Интеграция с внешними системами аналитики
 - Ветвления в сценариях
-
