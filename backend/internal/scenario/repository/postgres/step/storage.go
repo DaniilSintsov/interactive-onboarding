@@ -15,7 +15,6 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
-	"go.uber.org/zap"
 )
 
 const (
@@ -29,18 +28,15 @@ const (
 type stepRepository struct {
 	queries    *sqlc.Queries
 	transactor transactor.Transactor
-	logger     *zap.Logger
 }
 
 func NewRepository(
 	db sqlc.DBTX,
 	transactor transactor.Transactor,
-	logger *zap.Logger,
 ) *stepRepository {
 	return &stepRepository{
 		queries:    sqlc.New(db),
 		transactor: transactor,
-		logger:     logger,
 	}
 }
 
@@ -159,29 +155,18 @@ func (repo *stepRepository) ListByScenarioID(
 	}
 
 	steps := make([]entity.Step, 0, len(rows))
-	for _, row := range rows {
+	for i, row := range rows {
 		steps = append(steps, entity.Step{
 			ID:           row.ID,
 			ScenarioID:   row.ScenarioID,
 			ElementID:    row.ElementID,
-			StepNum:      int(row.StepNum),
+			StepNum:      i + 1,
 			Title:        row.Title,
 			Description:  row.Description,
 			FrontendData: row.FrontendData,
 			CreatedAt:    row.CreatedAt.Time.UTC(),
 			UpdatedAt:    row.UpdatedAt.Time.UTC(),
 		})
-	}
-
-	IDs := make([]uuid.UUID, 0, len(steps))
-
-	for i := range steps {
-		steps[i].StepNum = i + 1
-		IDs = append(IDs, steps[i].ID)
-	}
-
-	if err = repo.Reorder(ctx, scenarioID, IDs); err != nil {
-		repo.logger.Warn("step repository - reorder after list", zap.Error(err))
 	}
 
 	return steps, nil
