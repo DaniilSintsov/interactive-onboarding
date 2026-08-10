@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: Interactive Onboarding API
-  version: 0.4.0
+  version: 0.10.0
   description: 'API MVP-платформы интерактивного онбординга: управление проектами, элементами интерфейса, сценариями
     и шагами, Runtime API для SDK, Tracking, аналитика и PDF-отчёты.'
 servers:
@@ -54,8 +54,12 @@ paths:
           $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '409':
+          $ref: '#/components/responses/Conflict'
         '422':
           $ref: '#/components/responses/ValidationError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
       description: Создаёт проект, выдаёт project_key и сохраняет первоначальный список элементов интерфейса.
     get:
       tags:
@@ -74,8 +78,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ProjectListResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
       description: Возвращает проекты с пагинацией через параметры limit и offset.
   /api/v1/projects/{projectId}:
     parameters:
@@ -94,10 +102,14 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ProjectWithElements'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '404':
           $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
       description: Возвращает проект вместе с его элементами интерфейса.
     patch:
       tags:
@@ -127,7 +139,31 @@ paths:
           $ref: '#/components/responses/NotFound'
         '422':
           $ref: '#/components/responses/ValidationError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
       description: Частично изменяет настройки проекта.
+    delete:
+      tags:
+        - Projects
+      operationId: deleteProject
+      summary: Удалить проект
+      description: |
+        Мягко удаляет проект. Удалённый проект перестаёт возвращаться
+        административными ручками и не используется Runtime.
+        Связанные элементы, сценарии, сессии и события физически сохраняются.
+      security:
+        - AdminBearer: []
+      responses:
+        '204':
+          description: Проект мягко удалён
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
 
   # ============================================================================
   # Elements
@@ -151,10 +187,14 @@ paths:
                 type: array
                 items:
                   $ref: '#/components/schemas/Element'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '404':
           $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
       description: Возвращает все элементы проекта одним массивом без пагинации. Список используется при выборе целевого
         элемента для шага сценария.
     post:
@@ -187,6 +227,8 @@ paths:
           $ref: '#/components/responses/Conflict'
         '422':
           $ref: '#/components/responses/ValidationError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
       description: Создаёт новый элемент интерфейса в указанном проекте.
   /api/v1/projects/{projectId}/elements/{elementId}:
     parameters:
@@ -222,18 +264,23 @@ paths:
           $ref: '#/components/responses/Conflict'
         '422':
           $ref: '#/components/responses/ValidationError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
       description: Частично изменяет данные элемента интерфейса.
     delete:
       tags:
         - Elements
       operationId: deleteProjectElement
       summary: Удалить элемент проекта
-      description: Удаляет элемент, если на него не ссылается ни один шаг сценария.
+      description: |
+        Мягко удаляет элемент, если на него не ссылается ни один неудалённый
+        шаг сценария. Удалённый элемент перестаёт возвращаться
+        административными ручками и не используется Runtime.
       security:
         - AdminBearer: []
       responses:
         '204':
-          description: Элемент удалён
+          description: Элемент мягко удалён
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':
@@ -242,6 +289,8 @@ paths:
           $ref: '#/components/responses/NotFound'
         '409':
           $ref: '#/components/responses/Conflict'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
 
   # ============================================================================
   # Scenarios
@@ -277,6 +326,8 @@ paths:
           $ref: '#/components/responses/NotFound'
         '422':
           $ref: '#/components/responses/ValidationError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
       description: Создаёт сценарий в статусе in_development.
     get:
       tags:
@@ -300,10 +351,14 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ScenarioListResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '404':
           $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
       description: Возвращает сценарии проекта с фильтрацией по статусу и пагинацией.
   /api/v1/scenarios/{scenarioId}:
     parameters:
@@ -322,10 +377,14 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ScenarioWithSteps'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '404':
           $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
       description: Возвращает сценарий вместе с упорядоченным списком шагов.
     patch:
       tags:
@@ -359,6 +418,8 @@ paths:
           $ref: '#/components/responses/Conflict'
         '422':
           $ref: '#/components/responses/ValidationError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
     delete:
       tags:
         - Scenarios
@@ -369,12 +430,14 @@ paths:
       responses:
         '204':
           description: Сценарий мягко удалён
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '404':
           $ref: '#/components/responses/NotFound'
-        '409':
-          $ref: '#/components/responses/Conflict'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
       description: Мягко удаляет сценарий в любом статусе. Удалённый сценарий перестаёт возвращаться в списках и Runtime,
         но исторические сессии, события и аналитика сохраняются.
   /api/v1/scenarios/{scenarioId}/publish:
@@ -385,7 +448,7 @@ paths:
         - Scenarios
       operationId: publishScenario
       summary: Опубликовать сценарий
-      description: Проверяет конфигурацию и переводит сценарий из in_development в enabled.
+      description: Переводит сценарий из in_development в enabled.
       security:
         - AdminBearer: []
       responses:
@@ -395,14 +458,16 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Scenario'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '404':
           $ref: '#/components/responses/NotFound'
         '409':
           $ref: '#/components/responses/Conflict'
-        '422':
-          $ref: '#/components/responses/ValidationError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
   /api/v1/scenarios/{scenarioId}/enable:
     parameters:
       - $ref: '#/components/parameters/ScenarioId'
@@ -420,15 +485,17 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Scenario'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '404':
           $ref: '#/components/responses/NotFound'
         '409':
           $ref: '#/components/responses/Conflict'
-        '422':
-          $ref: '#/components/responses/ValidationError'
-      description: Повторно проверяет конфигурацию и переводит сценарий из disabled в enabled.
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+      description: Переводит сценарий из disabled в enabled.
   /api/v1/scenarios/{scenarioId}/disable:
     parameters:
       - $ref: '#/components/parameters/ScenarioId'
@@ -446,38 +513,47 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Scenario'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '404':
           $ref: '#/components/responses/NotFound'
         '409':
           $ref: '#/components/responses/Conflict'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
       description: Переводит сценарий из enabled в disabled. После выключения сценарий не выдаётся Runtime и может быть
         отредактирован.
-  /api/v1/scenarios/{scenarioId}/preview:
+  /api/v1/scenarios/{scenarioId}/test-tokens:
     parameters:
       - $ref: '#/components/parameters/ScenarioId'
-    get:
+    post:
       tags:
         - Scenarios
-      operationId: previewScenario
-      summary: Получить конфигурацию сценария для предпросмотра
-      description: Возвращает SDK-совместимую конфигурацию без создания tracking-сессии.
+      operationId: createScenarioTestToken
+      summary: Создать токен для тестирования сценария
+      description: |
+        Создаёт короткоживущий токен для тестирования сценария через SDK.
+        Токен может быть создан для неудалённого сценария в любом статусе. Срок действия задаётся backend.
+        Полученное значение токена возвращается только при создании.
       security:
         - AdminBearer: []
       responses:
-        '200':
-          description: Конфигурация для предпросмотра
+        '201':
+          description: Токен для тестирования создан
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/RuntimeScenario'
+                $ref: '#/components/schemas/ScenarioTestTokenResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '404':
           $ref: '#/components/responses/NotFound'
-        '422':
-          $ref: '#/components/responses/ValidationError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
 
   # ============================================================================
   # Steps
@@ -515,6 +591,8 @@ paths:
           $ref: '#/components/responses/Conflict'
         '422':
           $ref: '#/components/responses/ValidationError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
       description: Создание разрешено для сценариев в статусах in_development и disabled.
   /api/v1/scenarios/{scenarioId}/steps/{stepId}:
     parameters:
@@ -550,6 +628,8 @@ paths:
           $ref: '#/components/responses/Conflict'
         '422':
           $ref: '#/components/responses/ValidationError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
       description: Изменение разрешено для сценариев в статусах in_development и disabled.
     delete:
       tags:
@@ -561,12 +641,16 @@ paths:
       responses:
         '204':
           description: Шаг мягко удалён
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '404':
           $ref: '#/components/responses/NotFound'
         '409':
           $ref: '#/components/responses/Conflict'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
       description: Мягко удаляет шаг сценария. Операция разрешена для сценариев в статусах in_development и disabled.
         Удалённый шаг исключается из конфигурации сценария, предпросмотра и Runtime, но связанные исторические события
         сохраняются.
@@ -605,6 +689,8 @@ paths:
           $ref: '#/components/responses/Conflict'
         '422':
           $ref: '#/components/responses/ValidationError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
       description: Полностью заменяет порядок шагов. Операция разрешена для сценариев в статусах in_development и disabled.
 
   # ============================================================================
@@ -666,8 +752,6 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ProjectAnalytics'
-        '400':
-          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '404':
@@ -739,6 +823,8 @@ paths:
       summary: Найти подходящий сценарий для SDK
       security:
         - ProjectKey: []
+      parameters:
+        - $ref: '#/components/parameters/ScenarioTestToken'
       requestBody:
         required: true
         content:
@@ -747,21 +833,27 @@ paths:
               $ref: '#/components/schemas/ResolveScenarioRequest'
       responses:
         '200':
-          description: Подходящий сценарий найден
+          description: Результат поиска сценариев
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/RuntimeScenario'
-        '204':
-          description: Подходящий сценарий отсутствует
+                $ref: '#/components/schemas/RuntimeScenarioResolveResponse'
         '400':
           $ref: '#/components/responses/BadRequest'
         '403':
           $ref: '#/components/responses/Forbidden'
         '422':
           $ref: '#/components/responses/ValidationError'
-      description: Определяет подходящий enabled-сценарий по project_key, странице и пользователю. Сессию прохождения
-        не создаёт.
+      description: |
+        Без тестового токена возвращает все неудалённые enabled-сценарии проекта, подходящие для страницы и ещё
+        не завершённые или не пропущенные данным пользователем. Сценарии упорядочены по published_at и id.
+        Если подходящих сценариев нет, возвращает 200 с пустым массивом.
+
+        При передаче X-Scenario-Test-Token проверяет срок действия токена, принадлежность сценария проекту и
+        соответствие page его page_pattern. Для валидного токена возвращает только связанный с ним сценарий,
+        независимо от статуса и истории пользователя, с is_test=true. Невалидный, истёкший или принадлежащий
+        другому проекту токен возвращает 403. Несоответствие страницы или невалидная конфигурация возвращает 422.
+        При is_test=true SDK не создаёт tracking-сессию и не отправляет события.
 
   # ============================================================================
   # Tracking
@@ -797,7 +889,8 @@ paths:
           $ref: '#/components/responses/Conflict'
         '422':
           $ref: '#/components/responses/ValidationError'
-      description: Создаёт активную сессию, когда SDK фактически начинает показывать сценарий.
+      description: Создаёт активную сессию, когда SDK фактически начинает показывать сценарий. SDK не вызывает эту
+        ручку для результата Runtime с is_test=true.
   /api/v1/sdk/events:
     post:
       tags:
@@ -835,7 +928,8 @@ paths:
           $ref: '#/components/responses/Conflict'
         '422':
           $ref: '#/components/responses/ValidationError'
-      description: Сохраняет идемпотентное событие, отправленное SDK.
+      description: Сохраняет идемпотентное событие, отправленное SDK. SDK не отправляет события для результата
+        Runtime с is_test=true.
 components:
   securitySchemes:
     AdminBearer:
@@ -862,6 +956,15 @@ components:
       schema:
         type: string
         format: uuid
+    ScenarioTestToken:
+      name: X-Scenario-Test-Token
+      in: header
+      required: false
+      schema:
+        type: string
+        minLength: 32
+        maxLength: 256
+      description: Короткоживущий токен для запуска одного сценария в тестовом режиме.
     StepId:
       name: stepId
       in: path
@@ -948,6 +1051,12 @@ components:
         application/json:
           schema:
             $ref: '#/components/schemas/ErrorResponse'
+    InternalServerError:
+      description: Внутренняя ошибка сервера
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
   schemas:
     ErrorResponse:
       type: object
@@ -968,7 +1077,6 @@ components:
       type: object
       required:
         - name
-        - elements
       additionalProperties: false
       properties:
         name:
@@ -977,10 +1085,11 @@ components:
           maxLength: 255
         elements:
           type: array
+          default: []
           items:
             $ref: '#/components/schemas/CreateElementInput'
-          description: Начальный список элементов интерфейса проекта. Может быть пустым; элементы можно добавить позднее
-            отдельной ручкой.
+          description: Необязательный начальный список элементов интерфейса проекта. Если поле отсутствует, проект создаётся
+            без элементов; элементы можно добавить позднее отдельной ручкой.
     UpdateProjectRequest:
       type: object
       minProperties: 1
@@ -1177,12 +1286,13 @@ components:
       required:
         - element_id
         - title
-        - description
       additionalProperties: false
       properties:
         step_num:
           type: integer
+          format: int32
           minimum: 1
+          maximum: 2147483647
           description: Если не передан, шаг добавляется в конец.
         title:
           type: string
@@ -1190,8 +1300,8 @@ components:
           maxLength: 255
         description:
           type: string
-          minLength: 1
           maxLength: 2000
+          default: ''
         frontend_data:
           $ref: '#/components/schemas/FrontendStepData'
         element_id:
@@ -1209,7 +1319,6 @@ components:
           maxLength: 255
         description:
           type: string
-          minLength: 1
           maxLength: 2000
         frontend_data:
           $ref: '#/components/schemas/FrontendStepData'
@@ -1250,7 +1359,9 @@ components:
           format: uuid
         step_num:
           type: integer
+          format: int32
           minimum: 1
+          maximum: 2147483647
         title:
           type: string
         description:
@@ -1285,6 +1396,39 @@ components:
           minLength: 1
           maxLength: 255
           description: Внешний идентификатор пользователя классифайда.
+    ScenarioTestTokenResponse:
+      type: object
+      required:
+        - token
+        - expires_at
+      additionalProperties: false
+      properties:
+        token:
+          type: string
+          minLength: 32
+          maxLength: 256
+          description: Открытое значение токена. Backend не возвращает его повторно после создания.
+        expires_at:
+          type: string
+          format: date-time
+          description: Момент окончания срока действия токена.
+    RuntimeScenarioResolveResponse:
+      type: object
+      required:
+        - is_test
+        - scenarios
+      additionalProperties: false
+      properties:
+        is_test:
+          type: boolean
+          description: Равно true только при успешном разрешении сценария по тестовому токену.
+        scenarios:
+          type: array
+          description: |
+            В обычном режиме содержит все подходящие сценарии и может быть пустым. В тестовом режиме содержит
+            ровно один сценарий.
+          items:
+            $ref: '#/components/schemas/RuntimeScenario'
     RuntimeScenario:
       type: object
       required:
@@ -1323,7 +1467,9 @@ components:
           format: uuid
         step_num:
           type: integer
+          format: int32
           minimum: 1
+          maximum: 2147483647
         title:
           type: string
         description:

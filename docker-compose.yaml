@@ -1,0 +1,121 @@
+services:
+  onboarding-backend:
+    build:
+      context: backend
+      dockerfile: Dockerfile
+    environment:
+      HTTP_HOST: "0.0.0.0"
+      HTTP_PORT: "8080"
+      HTTP_ALLOWED_ORIGINS: "http://localhost:3000,http://localhost:3001"
+      HTTP_READ_HEADER_TIMEOUT: 5s
+      HTTP_READ_TIMEOUT: 15s
+      HTTP_WRITE_TIMEOUT: 30s
+      HTTP_IDLE_TIMEOUT: 60s
+      HTTP_SHUTDOWN_TIME: 30s
+      POSTGRES_HOST: db
+      POSTGRES_PORT: "5432"
+      POSTGRES_DB: onboarding
+      POSTGRES_USER: onboarding_user
+      POSTGRES_PASSWORD: "12345"
+      ADMIN_TOKEN: ${ADMIN_TOKEN:-admintoken}
+    ports:
+      - "127.0.0.1:8080:8080"
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null --header=\"Authorization: Bearer $${ADMIN_TOKEN}\" 'http://127.0.0.1:8080/api/v1/projects?limit=1'"]
+      interval: 2s
+      timeout: 3s
+      retries: 15
+      start_period: 5s
+
+  onboarding-sync:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+      target: onboarding-sync
+    command:
+      - npm
+      - run
+      - onboarding:sync
+      - --
+      - --backend-url=http://onboarding-backend:8080
+      - --project-key=${NEXT_PUBLIC_PROJECT_KEY:-pk_demo_avito}
+      - --revision=${CI_COMMIT_SHA:-local}
+    environment:
+      ADMIN_TOKEN: ${ADMIN_TOKEN:-admintoken}
+    depends_on:
+      onboarding-backend:
+        condition: service_healthy
+    restart: "no"
+
+  test-preview:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+      target: test-preview
+      args:
+        NEXT_PUBLIC_PROJECT_KEY: ${NEXT_PUBLIC_PROJECT_KEY:-pk_demo_avito}
+        NEXT_PUBLIC_PREVIEW_URL: ${NEXT_PUBLIC_PREVIEW_URL:-http://localhost:3000}
+    environment:
+      BACKEND_URL: http://onboarding-backend:8080
+    ports:
+      - "${PREVIEW_PORT:-3000}:3000"
+    depends_on:
+      onboarding-backend:
+        condition: service_healthy
+      onboarding-sync:
+        condition: service_completed_successfully
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:3000/"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  admin:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+      target: admin
+      args:
+        NEXT_PUBLIC_PROJECT_KEY: ${NEXT_PUBLIC_PROJECT_KEY:-pk_demo_avito}
+        NEXT_PUBLIC_PREVIEW_URL: ${NEXT_PUBLIC_PREVIEW_URL:-http://localhost:3000}
+    environment:
+      ADMIN_API_URL: http://onboarding-backend:8080
+      ADMIN_TOKEN: ${ADMIN_TOKEN:-admintoken}
+      ADMIN_PASSWORD_HASH: ${ADMIN_PASSWORD_HASH:?ADMIN_PASSWORD_HASH is required}
+      SESSION_SECRET: ${SESSION_SECRET:?SESSION_SECRET is required}
+    ports:
+      - "${ADMIN_PORT:-3001}:3000"
+    depends_on:
+      onboarding-backend:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:3000/login"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  db:
+    image: postgres:18
+    environment:
+      POSTGRES_DB: onboarding
+      POSTGRES_USER: onboarding_user
+      POSTGRES_PASSWORD: "12345"
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U onboarding_user -d onboarding"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  postgres_data:

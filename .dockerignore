@@ -1,0 +1,11 @@
+.git
+.codegraph
+.agents
+.claude
+.scratch
+**/.next
+**/node_modules
+**/dist
+**/coverage
+**/.env*
+**/*.tsbuildinfo
