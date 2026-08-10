@@ -1,5 +1,7 @@
-.PHONY: up stop down clean clean-all \
+.PHONY: up stop down clean \
 	backend-up backend-stop \
+	backend-deps backend-tidy backend-tools \
+	backend-test backend-lint \
 	frontend-up frontend-stop \
 	admin-up admin-stop \
 	preview-up preview-stop \
@@ -15,7 +17,7 @@ backend-tidy:
 	cd backend && go mod tidy
 
 backend-tools:
-	go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
+	go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.64.8
 
 backend-test:
 	cd backend && go test -v -count=1 ./...
