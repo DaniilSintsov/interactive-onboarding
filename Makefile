@@ -5,8 +5,20 @@
 	preview-up preview-stop \
 	logs ps
 
-lint:
+backend-lint:
 	cd backend && golangci-lint run ./...
+
+backend-deps:
+	cd backend && go mod download
+
+backend-tidy:
+	cd backend && go mod tidy
+
+backend-tools:
+	go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
+
+backend-test:
+	cd backend && go test -v -count=1 ./...
 
 up:
 	docker compose up -d --build
