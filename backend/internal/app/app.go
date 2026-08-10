@@ -80,7 +80,7 @@ func Run(logger *zap.Logger, cfg *config.Config) error {
 	scenarioRepository := scenarioDB.NewRepository(dbPool)
 	elementRepository := elementDB.NewRepository(dbPool)
 	projectRepository := projectDB.NewRepository(dbPool)
-	stepRepository := stepDB.NewRepository(dbPool, txManager)
+	stepRepository := stepDB.NewRepository(dbPool, txManager, logger)
 
 	runtimeScenarioRepository := runtimeScenarioDB.NewScenarioRepository(dbPool)
 	runtimeProjectRepository := runtimeProjectsDB.NewProjectRepository(dbPool)

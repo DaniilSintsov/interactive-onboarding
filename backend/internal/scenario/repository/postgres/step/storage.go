@@ -15,6 +15,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
+	"go.uber.org/zap"
 )
 
 const (
@@ -28,15 +29,18 @@ const (
 type stepRepository struct {
 	queries    *sqlc.Queries
 	transactor transactor.Transactor
+	logger     *zap.Logger
 }
 
 func NewRepository(
 	db sqlc.DBTX,
 	transactor transactor.Transactor,
+	logger *zap.Logger,
 ) *stepRepository {
 	return &stepRepository{
 		queries:    sqlc.New(db),
 		transactor: transactor,
+		logger:     logger,
 	}
 }
 
@@ -167,6 +171,17 @@ func (repo *stepRepository) ListByScenarioID(
 			CreatedAt:    row.CreatedAt.Time.UTC(),
 			UpdatedAt:    row.UpdatedAt.Time.UTC(),
 		})
+	}
+
+	IDs := make([]uuid.UUID, 0, len(steps))
+
+	for i := range steps {
+		steps[i].StepNum = i + 1
+		IDs = append(IDs, steps[i].ID)
+	}
+
+	if err = repo.Reorder(ctx, scenarioID, IDs); err != nil {
+		repo.logger.Warn("step repository - reorder after list", zap.Error(err))
 	}
 
 	return steps, nil
