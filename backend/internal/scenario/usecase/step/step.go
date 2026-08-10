@@ -214,6 +214,21 @@ func (service *stepService) Delete(
 			return err
 		}
 
+		steps, err := service.stepRepository.ListByScenarioID(ctx, scenarioID)
+		if err != nil {
+			return err
+		}
+
+		IDs := make([]uuid.UUID, 0, len(steps))
+		for i := range steps {
+			IDs = append(IDs, steps[i].ID)
+		}
+
+		err = service.stepRepository.Reorder(ctx, scenarioID, IDs)
+		if err != nil {
+			service.logger.Warn("step usecase - delete: normalize steps order error", zap.Error(err))
+		}
+
 		return nil
 	})
 	if err != nil {

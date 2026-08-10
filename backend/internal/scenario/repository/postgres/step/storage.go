@@ -155,12 +155,12 @@ func (repo *stepRepository) ListByScenarioID(
 	}
 
 	steps := make([]entity.Step, 0, len(rows))
-	for _, row := range rows {
+	for i, row := range rows {
 		steps = append(steps, entity.Step{
 			ID:           row.ID,
 			ScenarioID:   row.ScenarioID,
 			ElementID:    row.ElementID,
-			StepNum:      int(row.StepNum),
+			StepNum:      i + 1,
 			Title:        row.Title,
 			Description:  row.Description,
 			FrontendData: row.FrontendData,
