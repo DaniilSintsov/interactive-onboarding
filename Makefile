@@ -17,7 +17,7 @@ backend-tidy:
 	cd backend && go mod tidy
 
 backend-tools:
-	go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.64.8
+	go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.12.2
 
 backend-test:
 	cd backend && go test -v -count=1 ./...
