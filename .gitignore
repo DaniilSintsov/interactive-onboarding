@@ -18,3 +18,5 @@ CONTEXT.md
 /tmp/
 .codegraph/
 .reports/
+
+.idea/
