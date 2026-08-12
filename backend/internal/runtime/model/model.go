@@ -37,6 +37,7 @@ type RuntimeElement struct {
 	Key         string `json:"key"`
 	Label       string `json:"label"`
 	Description string `json:"description"`
+	Page        string `json:"page"`
 }
 
 type User struct {
