@@ -14,6 +14,7 @@ const (
 	MaxElementKeyLength         = 255
 	MaxElementLabelLength       = 255
 	MaxElementDescriptionLength = 2000
+	MaxElementPageLength        = 2048
 )
 
 type Element struct {
@@ -22,6 +23,7 @@ type Element struct {
 	Key         string
 	Label       string
 	Description string
+	Page        string
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
 	DeletedAt   *time.Time
@@ -31,9 +33,17 @@ func (e *Element) Normalize() {
 	e.Key = strings.TrimSpace(e.Key)
 	e.Label = strings.TrimSpace(e.Label)
 	e.Description = strings.TrimSpace(e.Description)
+	e.Page = strings.TrimSpace(e.Page)
 }
 
-func CheckElementFields(key string, label string, description string) error {
+func CheckElementFields(key string, label string, description string, page string) error {
+	if err := CheckElementContent(key, label, description); err != nil {
+		return err
+	}
+	return CheckElementPage(page)
+}
+
+func CheckElementContent(key string, label string, description string) error {
 	if key == "" {
 		return errs.ErrElementKeyRequired
 	}
@@ -52,12 +62,22 @@ func CheckElementFields(key string, label string, description string) error {
 	return nil
 }
 
+func CheckElementPage(page string) error {
+	if page == "" {
+		return errs.ErrElementPageRequired
+	}
+	if utf8.RuneCountInString(page) > MaxElementPageLength {
+		return errs.ErrElementPageTooLong
+	}
+	return nil
+}
+
 func (e *Element) Validate() error {
 	e.Normalize()
 	if e.ProjectID == uuid.Nil {
 		return errs.ErrElementProjectIDRequired
 	}
-	return CheckElementFields(e.Key, e.Label, e.Description)
+	return CheckElementFields(e.Key, e.Label, e.Description, e.Page)
 }
 
 type Project struct {
