@@ -62,6 +62,7 @@ func (r *StepRepository) GetStepsByScenarioId(ctx context.Context, scenarioID st
 				Key:         row.ElementKey.String,
 				Label:       row.ElementLabel.String,
 				Description: row.ElementDescription.String,
+				Page:        row.ElementPage.String,
 			},
 		})
 	}

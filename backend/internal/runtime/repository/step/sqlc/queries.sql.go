@@ -25,7 +25,8 @@ SELECT s.id AS scenario_id,
        e.id AS element_id,
        e.key AS element_key,
        e.label AS element_label,
-       e.description AS element_description
+       e.description AS element_description,
+       e.page AS element_page
 FROM onboarding.scenarios AS s
 LEFT JOIN onboarding.steps AS st
   ON st.scenario_id = s.id
@@ -52,6 +53,7 @@ type GetStepsByScenarioIdRow struct {
 	ElementKey          pgtype.Text `json:"element_key"`
 	ElementLabel        pgtype.Text `json:"element_label"`
 	ElementDescription  pgtype.Text `json:"element_description"`
+	ElementPage         pgtype.Text `json:"element_page"`
 }
 
 func (q *Queries) GetStepsByScenarioId(ctx context.Context, scenarioID uuid.UUID) ([]GetStepsByScenarioIdRow, error) {
@@ -77,6 +79,7 @@ func (q *Queries) GetStepsByScenarioId(ctx context.Context, scenarioID uuid.UUID
 			&i.ElementKey,
 			&i.ElementLabel,
 			&i.ElementDescription,
+			&i.ElementPage,
 		); err != nil {
 			return nil, err
 		}

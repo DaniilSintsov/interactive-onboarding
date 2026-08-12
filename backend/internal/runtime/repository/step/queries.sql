@@ -11,7 +11,8 @@ SELECT s.id AS scenario_id,
        e.id AS element_id,
        e.key AS element_key,
        e.label AS element_label,
-       e.description AS element_description
+       e.description AS element_description,
+       e.page AS element_page
 FROM onboarding.scenarios AS s
 LEFT JOIN onboarding.steps AS st
   ON st.scenario_id = s.id
