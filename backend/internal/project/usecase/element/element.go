@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/DaniilSintsov/interactive-onboarding/backend/internal/project/entity"
 	"github.com/DaniilSintsov/interactive-onboarding/backend/internal/project/errs"
@@ -14,7 +15,8 @@ import (
 
 type (
 	elementRepository interface {
-		ListByProjectID(ctx context.Context, projectID uuid.UUID) ([]entity.Element, error)
+		ListByProjectID(ctx context.Context, projectID uuid.UUID, page *string) ([]entity.Element, error)
+		ListPagesByProjectID(ctx context.Context, projectID uuid.UUID) ([]string, error)
 		Create(ctx context.Context, element entity.Element) (entity.Element, error)
 		Update(ctx context.Context, params port.UpdateElementParams) (entity.Element, error)
 		Delete(ctx context.Context, projectID uuid.UUID, elementID uuid.UUID) error
@@ -61,9 +63,19 @@ func NewElementService(
 func (service *elementService) List(
 	ctx context.Context,
 	projectID uuid.UUID,
+	page *string,
 ) ([]entity.Element, error) {
 	if projectID == uuid.Nil {
 		return nil, fmt.Errorf("element usecase - list: %w", errs.ErrElementProjectIDRequired)
+	}
+
+	var normalizedPage *string
+	if page != nil {
+		value := strings.TrimSpace(*page)
+		if err := entity.CheckElementPage(value); err != nil {
+			return nil, fmt.Errorf("element usecase - list: validation error: %w", err)
+		}
+		normalizedPage = &value
 	}
 
 	resultElements := make([]entity.Element, 0)
@@ -76,7 +88,7 @@ func (service *elementService) List(
 			return fmt.Errorf("element usecase - list: %w", err)
 		}
 
-		elements, err := service.elementRepository.ListByProjectID(ctx, projectID)
+		elements, err := service.elementRepository.ListByProjectID(ctx, projectID, normalizedPage)
 		if err != nil {
 			return service.wrapListError(err, projectID)
 		}
@@ -91,6 +103,37 @@ func (service *elementService) List(
 	return resultElements, nil
 }
 
+func (service *elementService) ListPages(
+	ctx context.Context,
+	projectID uuid.UUID,
+) ([]string, error) {
+	if projectID == uuid.Nil {
+		return nil, fmt.Errorf("element usecase - list pages: %w", errs.ErrElementProjectIDRequired)
+	}
+
+	var resultPages []string
+	err := service.transactor.WithTx(ctx, func(ctx context.Context) error {
+		if err := service.projectRepository.LockActive(ctx, projectID); err != nil {
+			if errors.Is(err, errs.ErrProjectNotFound) {
+				return errs.ErrProjectNotFound
+			}
+			return fmt.Errorf("element usecase - list pages: %w", err)
+		}
+
+		pages, err := service.elementRepository.ListPagesByProjectID(ctx, projectID)
+		if err != nil {
+			return service.wrapListPagesError(err, projectID)
+		}
+		resultPages = pages
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return resultPages, nil
+}
+
 func (service *elementService) Create(
 	ctx context.Context,
 	params port.CreateElementParams,
@@ -100,6 +143,7 @@ func (service *elementService) Create(
 		Key:         params.Key,
 		Label:       params.Label,
 		Description: params.Description,
+		Page:        params.Page,
 	}
 
 	if err := element.Validate(); err != nil {
@@ -252,10 +296,20 @@ func (service *elementService) wrapCreateError(err error, params port.CreateElem
 	service.logger.Error("element usecase - create failed",
 		zap.String("project_id", params.ProjectID.String()),
 		zap.String("key", params.Key),
+		zap.String("page", params.Page),
 		zap.Error(err),
 	)
 
 	return fmt.Errorf("element usecase - create: project_id=%v key=%s: %w", params.ProjectID, params.Key, err)
+}
+
+func (service *elementService) wrapListPagesError(err error, projectID uuid.UUID) error {
+	service.logger.Error("element usecase - list pages failed",
+		zap.String("project_id", projectID.String()),
+		zap.Error(err),
+	)
+
+	return fmt.Errorf("element usecase - list pages: project_id=%v: %w", projectID, err)
 }
 
 func getStringFromPtr(str *string) string {
