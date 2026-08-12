@@ -12,7 +12,8 @@ import (
 
 type (
 	elementService interface {
-		List(ctx context.Context, projectID uuid.UUID) ([]entity.Element, error)
+		List(ctx context.Context, projectID uuid.UUID, page *string) ([]entity.Element, error)
+		ListPages(ctx context.Context, projectID uuid.UUID) ([]string, error)
 		Create(ctx context.Context, params port.CreateElementParams) (entity.Element, error)
 		Update(ctx context.Context, params port.UpdateElementParams) (entity.Element, error)
 		Delete(ctx context.Context, projectID uuid.UUID, elementID uuid.UUID) error
@@ -54,6 +55,7 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("DELETE /api/v1/projects/{projectId}", h.deleteProject)
 
 	mux.HandleFunc("GET /api/v1/projects/{projectId}/elements", h.listElements)
+	mux.HandleFunc("GET /api/v1/projects/{projectId}/pages", h.listPages)
 	mux.HandleFunc("POST /api/v1/projects/{projectId}/elements", h.createElement)
 	mux.HandleFunc("PATCH /api/v1/projects/{projectId}/elements/{elementId}", h.updateElement)
 	mux.HandleFunc("DELETE /api/v1/projects/{projectId}/elements/{elementId}", h.deleteElement)

@@ -93,7 +93,14 @@ func (h *Handler) listElements(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	result, err := h.elementService.List(r.Context(), projectID)
+	query := r.URL.Query()
+	var page *string
+	if _, provided := query["page"]; provided {
+		value := query.Get("page")
+		page = &value
+	}
+
+	result, err := h.elementService.List(r.Context(), projectID, page)
 	if err != nil {
 		h.handleError(w, r, err)
 		return
@@ -104,4 +111,20 @@ func (h *Handler) listElements(w http.ResponseWriter, r *http.Request) {
 		http.StatusOK,
 		elementsToResponse(result),
 	)
+}
+
+func (h *Handler) listPages(w http.ResponseWriter, r *http.Request) {
+	projectID, err := httpserver.ParseUUIDPath(r, "projectId", "invalid_project_id")
+	if err != nil {
+		h.handleError(w, r, err)
+		return
+	}
+
+	pages, err := h.elementService.ListPages(r.Context(), projectID)
+	if err != nil {
+		h.handleError(w, r, err)
+		return
+	}
+
+	httpserver.WriteJSON(w, http.StatusOK, projectPagesToResponse(pages))
 }

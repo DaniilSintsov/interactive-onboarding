@@ -13,6 +13,7 @@ func createProjectRequestToParams(request CreateProjectRequest) port.CreateProje
 			Key:         element.Key,
 			Label:       element.Label,
 			Description: element.Description,
+			Page:        element.Page,
 		})
 	}
 
@@ -28,6 +29,7 @@ func createElementRequestToParams(request CreateElementRequest, projectID uuid.U
 		Key:         request.Key,
 		Label:       request.Label,
 		Description: request.Description,
+		Page:        request.Page,
 	}
 }
 
@@ -58,6 +60,7 @@ func elementToResponse(element entity.Element) ElementResponse {
 		Key:         element.Key,
 		Label:       element.Label,
 		Description: element.Description,
+		Page:        element.Page,
 		CreatedAt:   element.CreatedAt,
 		UpdatedAt:   element.UpdatedAt,
 	}
@@ -100,4 +103,13 @@ func elementsToResponse(elements []entity.Element) []ElementResponse {
 	}
 
 	return response
+}
+
+func projectPagesToResponse(pages []string) ProjectPagesResponse {
+	items := make([]ProjectPageResponse, 0, len(pages))
+	for _, page := range pages {
+		items = append(items, ProjectPageResponse{Page: page})
+	}
+
+	return ProjectPagesResponse{Items: items}
 }
