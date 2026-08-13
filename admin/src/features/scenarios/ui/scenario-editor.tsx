@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Alert,
@@ -15,13 +15,10 @@ import {
   Skeleton,
   Space,
 } from 'antd';
-import { parseOnboardingCatalogMetadata } from '@/features/elements/model/onboarding-catalog';
 import { adminApi } from '@/shared/api/admin-api';
 import type { Element, ScenarioInput, Step, StepInput } from '@/shared/api/types';
 import {
-  getStepCatalogWarnings,
   initialStepValues,
-  selectPagePath,
   toStepInput,
   type StepFormValues,
 } from '@/features/scenarios/model/step-form';
@@ -29,41 +26,73 @@ import { buildScenarioPreviewUrl } from '@/features/scenarios/model/preview';
 import { ScenarioStatus } from './scenario-status';
 
 function StepModal({
+  projectId,
   step,
-  elements,
+  allElements,
   pending,
   onCancel,
   onSave,
 }: {
+  projectId: string;
   step: Step | null;
-  elements: Element[];
+  allElements: Element[];
   pending: boolean;
   onCancel: () => void;
   onSave: (input: StepInput) => void;
 }) {
   const [form] = Form.useForm<StepFormValues>();
   const mode = Form.useWatch('mode', form);
-  const elementId = Form.useWatch('element_id', form);
-  const pagePath = Form.useWatch('page_path', form) ?? '';
-  const selectedElement = useMemo(
-    () => elements.find((element) => element.id === elementId) ?? null,
-    [elementId, elements],
-  );
-  const catalogMetadata = useMemo(
-    () => (selectedElement ? parseOnboardingCatalogMetadata(selectedElement.description) : null),
-    [selectedElement],
-  );
-  const pagePaths = catalogMetadata?.page_paths;
-  const warnings = getStepCatalogWarnings({
-    step,
-    isAvailable: Boolean(catalogMetadata && pagePaths && pagePaths.length > 0),
-    pagePaths,
+  const elementId = Form.useWatch('element_id', form) ?? '';
+  const pagePath = (Form.useWatch('page_path', form) ?? '').trim();
+  const initialPagePath = step?.frontend_data.page_path ?? '';
+  const pages = useQuery({
+    queryKey: ['pages', projectId],
+    queryFn: () => adminApi.listPages(projectId),
   });
-
-  useEffect(() => {
-    const nextPagePath = selectPagePath(pagePath, pagePaths);
-    if (nextPagePath !== pagePath) form.setFieldValue('page_path', nextPagePath);
-  }, [form, pagePath, pagePaths]);
+  const pageElements = useQuery({
+    queryKey: ['elements', projectId, pagePath],
+    queryFn: () => adminApi.listElements(projectId, pagePath),
+    enabled: Boolean(pagePath),
+  });
+  const projectPagePaths = useMemo(
+    () => [...new Set((pages.data ?? []).map((page) => page.trim()).filter(Boolean))],
+    [pages.data],
+  );
+  const pageOptions = useMemo(() => {
+    const nextPagePaths = [...projectPagePaths];
+    if (initialPagePath.trim() && !nextPagePaths.includes(initialPagePath.trim())) nextPagePaths.unshift(initialPagePath.trim());
+    return nextPagePaths.map((pathname) => ({
+      value: pathname,
+      label: pathname === initialPagePath.trim() && !projectPagePaths.includes(pathname) ? `${pathname} · вне текущего списка` : pathname,
+    }));
+  }, [initialPagePath, projectPagePaths]);
+  const selectedElement = useMemo(
+    () =>
+      (pageElements.data ?? []).find((element) => element.id === elementId) ??
+      allElements.find((element) => element.id === elementId) ??
+      null,
+    [allElements, elementId, pageElements.data],
+  );
+  const elementOptions = useMemo(() => {
+    const options = (pageElements.data ?? []).map((element) => ({
+      value: element.id,
+      label: `${element.label} · ${element.key}`,
+    }));
+    if (selectedElement && !options.some((option) => option.value === selectedElement.id)) {
+      options.unshift({
+        value: selectedElement.id,
+        label: `${selectedElement.label} · ${selectedElement.key} · вне выбранной страницы`,
+      });
+    }
+    return options;
+  }, [pageElements.data, selectedElement]);
+  const pageMissing =
+    pages.isSuccess && Boolean(initialPagePath.trim()) && !projectPagePaths.includes(initialPagePath.trim());
+  const elementMissing =
+    Boolean(step?.element_id) &&
+    Boolean(pagePath) &&
+    pageElements.isSuccess &&
+    !pageElements.data.some((element) => element.id === step?.element_id);
 
   return (
     <Modal
@@ -84,67 +113,72 @@ function StepModal({
         initialValues={initialStepValues(step)}
         onFinish={(values) => onSave(toStepInput(values))}
       >
-        {warnings.length > 0 ? (
+        {pages.isError ? (
+          <Alert
+            style={{ marginBottom: 16 }}
+            type="error"
+            showIcon
+            message="Не удалось загрузить страницы проекта"
+            description={pages.error.message}
+          />
+        ) : null}
+        {pageMissing ? (
           <Alert
             style={{ marginBottom: 16 }}
             type="warning"
             showIcon
-            message="Проверьте шаг перед сохранением"
-            description={
-              <div>
-                {warnings.map((warning) => (
-                  <div key={warning}>{warning}</div>
-                ))}
-              </div>
-            }
+            message="Маршрут шага больше не найден в проекте"
+            description={`Сохранённый маршрут ${initialPagePath} оставлен в форме, но отсутствует в текущем списке страниц.`}
+          />
+        ) : null}
+        {elementMissing ? (
+          <Alert
+            style={{ marginBottom: 16 }}
+            type="warning"
+            showIcon
+            message="Элемент шага больше не найден на выбранной странице"
+            description="Сохранённый элемент оставлен в форме. При смене страницы поле очистится."
+          />
+        ) : null}
+        <Form.Item
+          label="Страница проекта"
+          name="page_path"
+          rules={[
+            { required: true, whitespace: true, message: 'Выберите страницу' },
+            { pattern: /^\//, message: 'Маршрут начинается с /' },
+            { max: 2048 },
+          ]}
+        >
+          <Select
+            showSearch
+            optionFilterProp="label"
+            loading={pages.isPending}
+            placeholder="Выберите страницу проекта"
+            options={pageOptions}
+            notFoundContent={pages.isPending ? 'Загрузка...' : 'Страницы не найдены'}
+            onChange={() => form.resetFields(['element_id'])}
+          />
+        </Form.Item>
+        {pageElements.isError ? (
+          <Alert
+            style={{ marginBottom: 16 }}
+            type="error"
+            showIcon
+            message="Не удалось загрузить элементы страницы"
+            description={pageElements.error.message}
           />
         ) : null}
         <Form.Item label="Элемент интерфейса" name="element_id" rules={[{ required: true, message: 'Выберите элемент' }]}>
           <Select
             showSearch
             optionFilterProp="label"
-            placeholder="Выберите data-onboarding-id"
-            options={elements.map((element) => {
-              const available = Boolean(parseOnboardingCatalogMetadata(element.description)?.page_paths.length);
-              return {
-                value: element.id,
-                label: `${element.label} · ${element.key}${available ? '' : ' · недоступен'}`,
-                disabled: !available && element.id !== step?.element_id,
-              };
-            })}
+            loading={pageElements.isPending}
+            disabled={!pagePath || pageElements.isError}
+            placeholder={pagePath ? 'Выберите data-onboarding-id' : 'Сначала выберите страницу'}
+            options={elementOptions}
+            notFoundContent={pagePath ? 'На странице нет элементов' : 'Сначала выберите страницу'}
           />
         </Form.Item>
-        {pagePaths && pagePaths.length > 0 ? (
-          <Form.Item
-            label="Маршрут"
-            name="page_path"
-            rules={[
-              { required: true, whitespace: true, message: 'Выберите маршрут' },
-              { pattern: /^\//, message: 'Маршрут начинается с /' },
-              { max: 2048 },
-            ]}
-          >
-            <Select
-              placeholder="Выберите маршрут из каталога"
-              options={pagePaths.map((catalogPagePath) => ({
-                value: catalogPagePath,
-                label: catalogPagePath,
-              }))}
-            />
-          </Form.Item>
-        ) : (
-          <Form.Item
-            label="Маршрут"
-            name="page_path"
-            rules={[
-              { required: true, whitespace: true, message: 'Укажите маршрут' },
-              { pattern: /^\//, message: 'Маршрут начинается с /' },
-              { max: 2048 },
-            ]}
-          >
-            <Input placeholder="/add-item/details" />
-          </Form.Item>
-        )}
         <div className="toolbar">
           <Form.Item label="Переход" name="mode" style={{ flex: 1, minWidth: 220 }}>
             <Select
@@ -199,7 +233,7 @@ export function ScenarioEditor({ projectId, scenarioId }: { projectId: string; s
     [elements.data],
   );
   const availableElementCount = useMemo(
-    () => (elements.data ?? []).filter((element) => parseOnboardingCatalogMetadata(element.description)?.page_paths.length).length,
+    () => (elements.data ?? []).filter((element) => element.page.trim()).length,
     [elements.data],
   );
 
@@ -394,8 +428,8 @@ export function ScenarioEditor({ projectId, scenarioId }: { projectId: string; s
             <Alert
               type="warning"
               showIcon
-              message="Элементы проекта ещё не синхронизированы"
-              description="После CI sync здесь появятся ключи из CI-каталога."
+              message="В проекте пока нет элементов"
+              description="Сначала добавьте элементы интерфейса, потом сможете собирать шаги сценария."
               action={<Button href={`/projects/${projectId}?tab=elements`} size="small">К inventory</Button>}
             />
           ) : null}
@@ -404,8 +438,8 @@ export function ScenarioEditor({ projectId, scenarioId }: { projectId: string; s
               style={{ marginBottom: 16 }}
               type="warning"
               showIcon
-              message="Для новых шагов нет доступных элементов"
-              description="Все элементы проекта отсутствуют в CI-каталоге. Проверьте вкладку inventory и CI sync."
+              message="Для новых шагов нет элементов с привязанной страницей"
+              description="Проверьте элементы проекта: у каждого шага должен быть элемент с заполненным page."
             />
           ) : null}
           {orderedSteps.length === 0 && elements.data.length > 0 ? (
@@ -458,9 +492,10 @@ export function ScenarioEditor({ projectId, scenarioId }: { projectId: string; s
 
       {editingStep !== undefined ? (
         <StepModal
+          projectId={projectId}
           key={editingStep?.id || 'new-step'}
           step={editingStep}
-          elements={elements.data}
+          allElements={elements.data}
           pending={saveStep.isPending}
           onCancel={() => setEditingStep(undefined)}
           onSave={(input) => saveStep.mutate({ step: editingStep, input })}

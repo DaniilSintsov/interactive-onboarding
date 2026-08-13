@@ -6,11 +6,6 @@ import ts from "typescript";
 const root = process.cwd();
 const defaultSource = path.join(root, "test-preview");
 const keyPattern = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
-const catalogMetadataPrefix = "onboarding-catalog:";
-
-function catalogDescription(pagePaths) {
-  return `${catalogMetadataPrefix}${JSON.stringify({ page_paths: pagePaths })}`;
-}
 
 function parseArgs(argv) {
   const options = {};
@@ -117,8 +112,10 @@ function collectSource(filePath, content, catalog, occurrences) {
           if (current && current.label !== label) {
             throw new Error(`conflicting labels for data-onboarding-id ${JSON.stringify(key)}`);
           }
-          if (current) current.pagePaths.add(page);
-          else catalog.set(key, { key, label, pagePaths: new Set([page]) });
+          if (current && current.page !== page) {
+            throw new Error(`conflicting pages for data-onboarding-id ${JSON.stringify(key)}`);
+          }
+          if (!current) catalog.set(key, { key, label, page });
         }
       }
     }
@@ -138,17 +135,7 @@ function collectManifest(sourceDirectory, revision) {
   return {
     revision,
     elements: [...catalog.values()]
-      .map(({ key, label, pagePaths }) => {
-        const page_paths = [...pagePaths].sort();
-        const description = catalogDescription(page_paths);
-        if (description.length > 2000) throw new Error(`onboarding metadata for ${JSON.stringify(key)} is too long`);
-        return {
-          key,
-          label,
-          description,
-          page_paths,
-        };
-      })
+      .map(({ key, label, page }) => ({ key, label, description: "", page }))
       .sort((left, right) => left.key.localeCompare(right.key)),
   };
 }
@@ -163,7 +150,11 @@ function normalizeBackendUrl(value) {
   return url.toString().replace(/\/+$/, "");
 }
 
-function elementPayload(element) {
+function createElementPayload(element) {
+  return { key: element.key, label: element.label, description: element.description, page: element.page };
+}
+
+function updateElementPayload(element) {
   return { key: element.key, label: element.label, description: element.description };
 }
 
@@ -204,6 +195,12 @@ async function findProject(backendUrl, projectKey) {
 function planSync(existing, desired) {
   const desiredByKey = new Map(desired.map((element) => [element.key, element]));
   const existingByKey = new Map(existing.map((element) => [element.key, element]));
+  for (const element of desired) {
+    const current = existingByKey.get(element.key);
+    if (current && current.page !== element.page) {
+      throw new Error(`page changed for data-onboarding-id ${JSON.stringify(element.key)}`);
+    }
+  }
   return {
     create: desired.filter((element) => !existingByKey.has(element.key)),
     update: desired.filter((element) => {
@@ -222,22 +219,19 @@ async function syncElements(backendUrl, projectKey, manifest) {
   for (const element of plan.create) {
     await request(backendUrl, `/projects/${project.id}/elements`, {
       method: "POST",
-      body: JSON.stringify(elementPayload(element)),
+      body: JSON.stringify(createElementPayload(element)),
     });
   }
   const existingByKey = new Map(existing.map((element) => [element.key, element]));
   for (const element of plan.update) {
     await request(backendUrl, `/projects/${project.id}/elements/${existingByKey.get(element.key).id}`, {
       method: "PATCH",
-      body: JSON.stringify(elementPayload(element)),
+      body: JSON.stringify(updateElementPayload(element)),
     });
   }
   for (const element of plan.stale) {
-    const stale = { ...element, description: catalogDescription([]) };
-    if (element.description === stale.description) continue;
     await request(backendUrl, `/projects/${project.id}/elements/${element.id}`, {
-      method: "PATCH",
-      body: JSON.stringify(elementPayload(stale)),
+      method: "DELETE",
     });
   }
   return { projectId: project.id, created: plan.create.length, updated: plan.update.length, stale: plan.stale.length };
@@ -258,15 +252,26 @@ function selfTest() {
   const catalog = new Map();
   collectSource("fixture.tsx", source, catalog, new Set());
   assert.deepEqual([...catalog.keys()], ["save-item"]);
-  assert.deepEqual([...catalog.get("save-item").pagePaths], ["/items/new"]);
-  assert.equal(catalogDescription(["/items/new"]), 'onboarding-catalog:{"page_paths":["/items/new"]}');
-  assert.deepEqual(planSync([{ id: "1", key: "old", label: "Old", description: "" }], [
-    { key: "new", label: "New", description: "", page_paths: ["/"] },
-  ]), {
-    create: [{ key: "new", label: "New", description: "", page_paths: ["/"] }],
-    update: [],
-    stale: [{ id: "1", key: "old", label: "Old", description: "" }],
+  assert.equal(catalog.get("save-item").page, "/items/new");
+  assert.deepEqual(createElementPayload({ key: "save", label: "Save", description: "", page: "/items/new" }), {
+    key: "save",
+    label: "Save",
+    description: "",
+    page: "/items/new",
   });
+  assert.deepEqual(planSync([{ id: "1", key: "old", label: "Old", description: "", page: "/old" }], [
+    { key: "new", label: "New", description: "", page: "/" },
+  ]), {
+    create: [{ key: "new", label: "New", description: "", page: "/" }],
+    update: [],
+    stale: [{ id: "1", key: "old", label: "Old", description: "", page: "/old" }],
+  });
+  assert.throws(
+    () => planSync([{ id: "1", key: "save", label: "Save", description: "", page: "/old" }], [
+      { key: "save", label: "Save", description: "", page: "/new" },
+    ]),
+    /page changed/,
+  );
   assert.equal(normalizeBackendUrl("http://localhost:8080/"), "http://localhost:8080");
   assert.equal(adminAuthorization(" admintoken "), "Bearer admintoken");
   assert.throws(() => adminAuthorization(""), /ADMIN_TOKEN is required/);

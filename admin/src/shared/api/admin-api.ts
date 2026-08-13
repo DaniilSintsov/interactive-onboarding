@@ -53,8 +53,13 @@ export const adminApi = {
       body: json({ name, elements: [] }),
     }),
 
-  listElements: (projectId: string) => request<Element[]>(`/projects/${projectId}/elements`),
-  createElement: (projectId: string, input: ElementInput) =>
+  listPages: async (projectId: string) =>
+    (await request<{ items: { page: string }[] }>(`/projects/${projectId}/pages`)).items.map(({ page }) => page),
+  listElements: (projectId: string, pagePath?: string) =>
+    request<Element[]>(
+      `/projects/${projectId}/elements${pagePath ? `?page=${encodeURIComponent(pagePath)}` : ''}`,
+    ),
+  createElement: (projectId: string, input: ElementInput & { page: string }) =>
     request<Element>(`/projects/${projectId}/elements`, { method: 'POST', body: json(input) }),
   updateElement: (projectId: string, elementId: string, input: ElementInput) =>
     request<Element>(`/projects/${projectId}/elements/${elementId}`, {

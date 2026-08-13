@@ -18,6 +18,7 @@ export type Element = {
   project_id: string;
   key: string;
   label: string;
+  page: string;
   description: string;
   created_at: string;
   updated_at: string;

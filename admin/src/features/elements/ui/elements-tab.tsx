@@ -2,17 +2,15 @@
 
 import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Alert, Space, Table, Tag } from 'antd';
+import { Alert, Table, Tag } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
-import { parseOnboardingCatalogMetadata } from '@/features/elements/model/onboarding-catalog';
 import { adminApi } from '@/shared/api/admin-api';
 
 type InventoryRow = {
   rowKey: string;
   key: string;
   label: string;
-  page_paths: string[];
-  status: 'available' | 'stale';
+  page: string;
 };
 
 export function ElementsTab({ projectId }: { projectId: string }) {
@@ -24,13 +22,11 @@ export function ElementsTab({ projectId }: { projectId: string }) {
   const rows = useMemo<InventoryRow[]>(() => {
     return (elements.data ?? [])
       .map((element): InventoryRow => {
-        const metadata = parseOnboardingCatalogMetadata(element.description);
         return {
           rowKey: element.id,
           key: element.key,
           label: element.label,
-          page_paths: metadata?.page_paths ?? [],
-          status: metadata && metadata.page_paths.length > 0 ? 'available' : 'stale',
+          page: element.page.trim(),
         };
       })
       .sort((left, right) => left.key.localeCompare(right.key));
@@ -50,55 +46,35 @@ export function ElementsTab({ projectId }: { projectId: string }) {
       ),
     },
     {
-      title: 'Маршруты',
-      key: 'page_paths',
+      title: 'Страница',
+      key: 'page',
       render: (_, row) =>
-        row.page_paths.length > 0 ? (
-          <Space size={[6, 6]} wrap>
-            {row.page_paths.map((pagePath) => (
-              <Tag key={pagePath}>
-                <code>{pagePath}</code>
-              </Tag>
-            ))}
-          </Space>
+        row.page ? (
+          <Tag>
+            <code>{row.page}</code>
+          </Tag>
         ) : (
-          <span className="muted">Нет маршрутов в каталоге</span>
-        ),
-    },
-    {
-      title: 'Статус',
-      key: 'status',
-      render: (_, row) =>
-        row.status === 'available' ? (
-          <Tag color="green">В каталоге и в БД</Tag>
-        ) : (
-          <Tag color="red">Нет в текущем CI-каталоге</Tag>
+          <span className="muted">Страница не указана</span>
         ),
     },
   ];
-
-  const staleCount = rows.filter((row) => row.status === 'stale').length;
 
   return (
     <section>
       <div className="toolbar">
         <div>
-          <b>CI-инвентарь интерфейса</b>
-          <div className="muted">Источник: элементы проекта, синхронизированные при деплое test-preview.</div>
+          <b>Элементы интерфейса проекта</b>
+          <div className="muted">Только чтение. Для каждого элемента показана привязанная страница.</div>
         </div>
       </div>
       {elements.isError ? <Alert type="error" showIcon message={elements.error.message} /> : null}
       {!elements.isError && !elements.isPending ? (
         <Alert
           style={{ marginBottom: 16 }}
-          type={staleCount > 0 ? 'warning' : 'info'}
+          type="info"
           showIcon
           message="Вкладка только для чтения"
-          description={
-            staleCount > 0
-              ? `В текущем CI-каталоге отсутствуют элементы: ${staleCount}. Для новых шагов они недоступны.`
-              : 'Маршруты и названия берутся из CI-каталога. Ручное создание и редактирование элементов отключено.'
-          }
+          description="Название, ключ и страница приходят из backend. Ручное создание и редактирование элементов отключено."
         />
       ) : null}
       <Table<InventoryRow>
