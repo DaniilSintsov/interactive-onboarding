@@ -109,8 +109,6 @@ cd interactive-onboarding
 **2. Установка зависимостей и подготовка проекта**
 
 ```bash
-make backend-deps
-make backend-tidy
 cp .env.example .env
 ```
 

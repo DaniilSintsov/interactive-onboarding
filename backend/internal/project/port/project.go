@@ -16,6 +16,7 @@ type CreateProjectElementParams struct {
 	Key         string
 	Label       string
 	Description string
+	Page        string
 }
 
 func (params *CreateProjectParams) Normalize() {
@@ -29,6 +30,7 @@ func (params *CreateProjectElementParams) Normalize() {
 	params.Key = strings.TrimSpace(params.Key)
 	params.Label = strings.TrimSpace(params.Label)
 	params.Description = strings.TrimSpace(params.Description)
+	params.Page = strings.TrimSpace(params.Page)
 }
 
 func (params *CreateProjectParams) Validate() error {
@@ -46,7 +48,7 @@ func (params *CreateProjectParams) Validate() error {
 }
 
 func (params *CreateProjectElementParams) Validate() error {
-	return entity.CheckElementFields(params.Key, params.Label, params.Description)
+	return entity.CheckElementFields(params.Key, params.Label, params.Description, params.Page)
 }
 
 type ListProjectsResult struct {

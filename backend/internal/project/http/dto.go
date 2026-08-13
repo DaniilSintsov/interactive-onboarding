@@ -15,6 +15,7 @@ type CreateElementRequest struct {
 	Key         string `json:"key"`
 	Label       string `json:"label"`
 	Description string `json:"description"`
+	Page        string `json:"page"`
 }
 
 type UpdateProjectRequest struct {
@@ -41,6 +42,7 @@ type ElementResponse struct {
 	Key         string    `json:"key"`
 	Label       string    `json:"label"`
 	Description string    `json:"description"`
+	Page        string    `json:"page"`
 	CreatedAt   time.Time `json:"created_at"`
 	UpdatedAt   time.Time `json:"updated_at"`
 }
@@ -55,4 +57,12 @@ type ProjectListResponse struct {
 	Total  int64             `json:"total"`
 	Limit  int               `json:"limit"`
 	Offset int               `json:"offset"`
+}
+
+type ProjectPageResponse struct {
+	Page string `json:"page"`
+}
+
+type ProjectPagesResponse struct {
+	Items []ProjectPageResponse `json:"items"`
 }

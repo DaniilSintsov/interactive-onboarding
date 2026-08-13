@@ -34,19 +34,23 @@ func NewRepository(db sqlc.DBTX) *elementRepository {
 	}
 }
 
-func (e *elementRepository) getQueries(ctx context.Context) *sqlc.Queries {
+func (repo *elementRepository) getQueries(ctx context.Context) *sqlc.Queries {
 	if tx, err := transactor.ExtractTx(ctx); err == nil {
-		return e.queries.WithTx(tx)
+		return repo.queries.WithTx(tx)
 	}
 
-	return e.queries
+	return repo.queries
 }
 
 func (repo *elementRepository) ListByProjectID(
 	ctx context.Context,
 	projectID uuid.UUID,
+	page *string,
 ) ([]entity.Element, error) {
-	rows, err := repo.getQueries(ctx).ListElementsByProjectID(ctx, projectID)
+	rows, err := repo.getQueries(ctx).ListElementsByProjectID(ctx, sqlc.ListElementsByProjectIDParams{
+		ProjectID: projectID,
+		Page:      textFromPtr(page),
+	})
 	if err != nil {
 		return nil, fmt.Errorf("element repository - list by project id: %w", err)
 	}
@@ -59,6 +63,7 @@ func (repo *elementRepository) ListByProjectID(
 			Key:         row.Key,
 			Label:       row.Label,
 			Description: row.Description,
+			Page:        row.Page,
 			CreatedAt:   row.CreatedAt.Time.UTC(),
 			UpdatedAt:   row.UpdatedAt.Time.UTC(),
 		})
@@ -76,6 +81,7 @@ func (repo *elementRepository) Create(
 		Key:         element.Key,
 		Label:       element.Label,
 		Description: element.Description,
+		Page:        element.Page,
 	})
 	if err != nil {
 		var pgErr *pgconn.PgError
@@ -103,6 +109,7 @@ func (repo *elementRepository) Create(
 		Key:         createdElement.Key,
 		Label:       createdElement.Label,
 		Description: createdElement.Description,
+		Page:        createdElement.Page,
 		CreatedAt:   createdElement.CreatedAt.Time.UTC(),
 		UpdatedAt:   createdElement.UpdatedAt.Time.UTC(),
 	}, nil
@@ -142,9 +149,22 @@ func (repo *elementRepository) Update(
 		Key:         updatedElement.Key,
 		Label:       updatedElement.Label,
 		Description: updatedElement.Description,
+		Page:        updatedElement.Page,
 		CreatedAt:   updatedElement.CreatedAt.Time.UTC(),
 		UpdatedAt:   updatedElement.UpdatedAt.Time.UTC(),
 	}, nil
+}
+
+func (repo *elementRepository) ListPagesByProjectID(
+	ctx context.Context,
+	projectID uuid.UUID,
+) ([]string, error) {
+	pages, err := repo.getQueries(ctx).ListPagesByProjectID(ctx, projectID)
+	if err != nil {
+		return nil, fmt.Errorf("element repository - list pages by project id: %w", err)
+	}
+
+	return pages, nil
 }
 
 func (repo *elementRepository) Delete(

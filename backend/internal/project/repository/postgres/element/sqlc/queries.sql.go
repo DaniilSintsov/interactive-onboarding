@@ -13,9 +13,9 @@ import (
 )
 
 const createElement = `-- name: CreateElement :one
-INSERT INTO onboarding.elements (project_id, key, label, description)
-VALUES ($1, $2, $3, $4)
-RETURNING id, project_id, key, label, description, created_at, updated_at
+INSERT INTO onboarding.elements (project_id, key, label, description, page)
+VALUES ($1, $2, $3, $4, $5)
+RETURNING id, project_id, key, label, description, page, created_at, updated_at
 `
 
 type CreateElementParams struct {
@@ -23,6 +23,7 @@ type CreateElementParams struct {
 	Key         string    `json:"key"`
 	Label       string    `json:"label"`
 	Description string    `json:"description"`
+	Page        string    `json:"page"`
 }
 
 type CreateElementRow struct {
@@ -31,6 +32,7 @@ type CreateElementRow struct {
 	Key         string             `json:"key"`
 	Label       string             `json:"label"`
 	Description string             `json:"description"`
+	Page        string             `json:"page"`
 	CreatedAt   pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
 }
@@ -41,6 +43,7 @@ func (q *Queries) CreateElement(ctx context.Context, arg CreateElementParams) (C
 		arg.Key,
 		arg.Label,
 		arg.Description,
+		arg.Page,
 	)
 	var i CreateElementRow
 	err := row.Scan(
@@ -49,6 +52,7 @@ func (q *Queries) CreateElement(ctx context.Context, arg CreateElementParams) (C
 		&i.Key,
 		&i.Label,
 		&i.Description,
+		&i.Page,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
@@ -77,12 +81,18 @@ func (q *Queries) DeleteElement(ctx context.Context, arg DeleteElementParams) (u
 }
 
 const listElementsByProjectID = `-- name: ListElementsByProjectID :many
-SELECT id, project_id, key, label, description, created_at, updated_at
+SELECT id, project_id, key, label, description, page, created_at, updated_at
 FROM onboarding.elements
 WHERE project_id = $1
+  AND ($2::text IS NULL OR page = $2::text)
   AND deleted_at IS NULL
 ORDER BY created_at, id
 `
+
+type ListElementsByProjectIDParams struct {
+	ProjectID uuid.UUID   `json:"project_id"`
+	Page      pgtype.Text `json:"page"`
+}
 
 type ListElementsByProjectIDRow struct {
 	ID          uuid.UUID          `json:"id"`
@@ -90,12 +100,13 @@ type ListElementsByProjectIDRow struct {
 	Key         string             `json:"key"`
 	Label       string             `json:"label"`
 	Description string             `json:"description"`
+	Page        string             `json:"page"`
 	CreatedAt   pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
 }
 
-func (q *Queries) ListElementsByProjectID(ctx context.Context, projectID uuid.UUID) ([]ListElementsByProjectIDRow, error) {
-	rows, err := q.db.Query(ctx, listElementsByProjectID, projectID)
+func (q *Queries) ListElementsByProjectID(ctx context.Context, arg ListElementsByProjectIDParams) ([]ListElementsByProjectIDRow, error) {
+	rows, err := q.db.Query(ctx, listElementsByProjectID, arg.ProjectID, arg.Page)
 	if err != nil {
 		return nil, err
 	}
@@ -109,12 +120,41 @@ func (q *Queries) ListElementsByProjectID(ctx context.Context, projectID uuid.UU
 			&i.Key,
 			&i.Label,
 			&i.Description,
+			&i.Page,
 			&i.CreatedAt,
 			&i.UpdatedAt,
 		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listPagesByProjectID = `-- name: ListPagesByProjectID :many
+SELECT DISTINCT page
+FROM onboarding.elements
+WHERE project_id = $1
+  AND deleted_at IS NULL
+ORDER BY page
+`
+
+func (q *Queries) ListPagesByProjectID(ctx context.Context, projectID uuid.UUID) ([]string, error) {
+	rows, err := q.db.Query(ctx, listPagesByProjectID, projectID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []string
+	for rows.Next() {
+		var page string
+		if err := rows.Scan(&page); err != nil {
+			return nil, err
+		}
+		items = append(items, page)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
@@ -151,7 +191,7 @@ SET key         = COALESCE($1, key),
 WHERE project_id = $4
   AND id = $5
   AND deleted_at IS NULL
-RETURNING id, project_id, key, label, description, created_at, updated_at
+RETURNING id, project_id, key, label, description, page, created_at, updated_at
 `
 
 type UpdateElementParams struct {
@@ -168,6 +208,7 @@ type UpdateElementRow struct {
 	Key         string             `json:"key"`
 	Label       string             `json:"label"`
 	Description string             `json:"description"`
+	Page        string             `json:"page"`
 	CreatedAt   pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
 }
@@ -187,6 +228,7 @@ func (q *Queries) UpdateElement(ctx context.Context, arg UpdateElementParams) (U
 		&i.Key,
 		&i.Label,
 		&i.Description,
+		&i.Page,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
