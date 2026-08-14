@@ -31,7 +31,6 @@ export function OnboardingProvider({
 }) {
   const pathname = usePathname();
   const userId = usePreviewUserStore((state) => state.userId);
-  const onboarded = usePreviewUserStore((state) => state.onboarded);
   const setOnboarded = usePreviewUserStore((state) => state.setOnboarded);
   const controllerRef = useRef<OnboardingController | null>(null);
   const readyRef = useRef<Promise<OnboardingController | null> | null>(null);
@@ -43,7 +42,7 @@ export function OnboardingProvider({
   }, [pathname]);
 
   useEffect(() => {
-    if (!enabled || !userId || (onboarded && !testTokenRef.current)) return;
+    if (!enabled || !userId) return;
 
     let cancelled = false;
     let instance: OnboardingController | null = null;
@@ -73,10 +72,10 @@ export function OnboardingProvider({
       instance?.destroy();
       if (controllerRef.current === instance) controllerRef.current = null;
     };
-  }, [enabled, onboarded, setOnboarded, userId]);
+  }, [enabled, setOnboarded, userId]);
 
   useEffect(() => {
-    if (!enabled || !userId || (onboarded && !testTokenRef.current)) return;
+    if (!enabled || !userId) return;
 
     void readyRef.current
       ?.then(async (controller) => {
@@ -89,7 +88,7 @@ export function OnboardingProvider({
         }
       })
       .catch(() => undefined);
-  }, [enabled, onboarded, pathname, userId]);
+  }, [enabled, pathname, userId]);
 
   const completeCurrentStep = useCallback(async () => {
     const controller = controllerRef.current ?? (await readyRef.current);

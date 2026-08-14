@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { initialStepValues, toStepInput } from './step-form';
+import {
+  firstElementIdForPage,
+  initialStepValues,
+  isElementMissingFromPage,
+  toStepInput,
+} from './step-form';
 
 const base = {
   element_id: 'element-id',
@@ -43,5 +48,32 @@ describe('initialStepValues', () => {
         updated_at: '',
       }).page_path,
     ).toBe('');
+  });
+});
+
+describe('firstElementIdForPage', () => {
+  it('selects the first element of the new page', () => {
+    expect(
+      firstElementIdForPage(
+        [
+          { id: 'other-page', page: '/other' },
+          { id: 'first-match', page: ' /add-item/category ' },
+          { id: 'second-match', page: '/add-item/category' },
+        ],
+        '/add-item/category',
+      ),
+    ).toBe('first-match');
+  });
+
+  it('clears the selection when the page has no elements', () => {
+    expect(firstElementIdForPage([{ id: 'other-page', page: '/other' }], '/empty')).toBeUndefined();
+  });
+
+  it('treats the newly selected element as available', () => {
+    const pageElements = [{ id: 'first-match', page: '/add-item/category' }];
+    const selectedElementId = firstElementIdForPage(pageElements, '/add-item/category');
+
+    expect(isElementMissingFromPage(pageElements, selectedElementId)).toBe(false);
+    expect(isElementMissingFromPage(pageElements, 'saved-on-other-page')).toBe(true);
   });
 });

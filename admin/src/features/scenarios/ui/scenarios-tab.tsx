@@ -8,8 +8,21 @@ import type { ColumnsType } from 'antd/es/table';
 import { adminApi } from '@/shared/api/admin-api';
 import type { ScenarioInput, ScenarioSummary } from '@/shared/api/types';
 import { formatDate } from '@/shared/lib/format';
-import { buildScenarioPreviewUrl } from '@/features/scenarios/model/preview';
+import { buildScenarioPreviewUrl, isScenarioPathname } from '@/features/scenarios/model/preview';
 import { ScenarioStatus } from './scenario-status';
+
+const scenarioPathnameRules = [
+  { required: true, whitespace: true },
+  { max: 2048 },
+  {
+    validator: async (_: unknown, value?: string) => {
+      if (!value) return;
+      if (!isScenarioPathname(value)) {
+        throw new Error('Укажите путь вида /catalog без домена, параметров после ? и #.');
+      }
+    },
+  },
+];
 
 export function ScenariosTab({ projectId }: { projectId: string }) {
   const [creating, setCreating] = useState(false);
@@ -67,7 +80,7 @@ export function ScenariosTab({ projectId }: { projectId: string }) {
       title: 'Сценарий',
       key: 'name',
       render: (_, scenario) => (
-        <div><b>{scenario.name}</b><div className="muted"><code>{scenario.page_pattern}</code></div></div>
+        <div><b>{scenario.name}</b><div className="muted">Старт: <code>{scenario.page_pattern}</code></div></div>
       ),
     },
     { title: 'Статус', dataIndex: 'status', key: 'status', render: (status) => <ScenarioStatus status={status} /> },
@@ -107,7 +120,7 @@ export function ScenariosTab({ projectId }: { projectId: string }) {
   return (
     <section>
       <div className="toolbar">
-        <div><b>Сценарии помощи</b><div className="muted">Настройка, публикация и проверка.</div></div>
+        <div><b>Сценарии помощи</b><div className="muted">Выберите страницу запуска, добавьте шаги и проверьте результат.</div></div>
         <span className="toolbar-spacer" />
         <Button type="primary" onClick={() => setCreating(true)}>+ Новый сценарий</Button>
       </div>
@@ -140,7 +153,12 @@ export function ScenariosTab({ projectId }: { projectId: string }) {
           <Form.Item label="Название" name="name" rules={[{ required: true, whitespace: true }, { max: 255 }]}>
             <Input placeholder="Разместить первое объявление" autoFocus />
           </Form.Item>
-          <Form.Item label="Точка входа / page pattern" name="page_pattern" rules={[{ required: true, whitespace: true }, { max: 2048 }]}>
+          <Form.Item
+            label="Стартовая страница сценария"
+            extra="Сценарий предложится, когда пользователь откроет этот адрес. Укажите только путь, например /add-item/title: без домена, параметров после ? и #."
+            name="page_pattern"
+            rules={scenarioPathnameRules}
+          >
             <Input placeholder="/" />
           </Form.Item>
           <Form.Item label="Описание" name="description" rules={[{ max: 2000 }]}>

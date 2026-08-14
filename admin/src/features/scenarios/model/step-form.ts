@@ -1,4 +1,4 @@
-import type { Step, StepInput } from '@/shared/api/types';
+import type { Element, Step, StepInput } from '@/shared/api/types';
 
 export type StepFormValues = {
   element_id: string;
@@ -8,6 +8,21 @@ export type StepFormValues = {
   mode: 'target_event' | 'manual';
   event?: 'click' | 'change';
 };
+
+export function firstElementIdForPage(
+  elements: Pick<Element, 'id' | 'page'>[],
+  pagePath: string,
+): string | undefined {
+  const normalizedPagePath = pagePath.trim();
+  return elements.find((element) => element.page.trim() === normalizedPagePath)?.id;
+}
+
+export function isElementMissingFromPage(
+  elements: Pick<Element, 'id'>[],
+  elementId?: string,
+): boolean {
+  return Boolean(elementId && !elements.some((element) => element.id === elementId));
+}
 
 export function toStepInput(values: StepFormValues): StepInput {
   return {
