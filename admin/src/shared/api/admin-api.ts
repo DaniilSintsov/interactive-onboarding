@@ -6,6 +6,7 @@ import type {
   ProjectList,
   ProjectWithElements,
   Scenario,
+  ScenarioAnalytics,
   ScenarioInput,
   ScenarioList,
   ScenarioTestToken,
@@ -52,6 +53,7 @@ export const adminApi = {
       method: 'POST',
       body: json({ name, elements: [] }),
     }),
+  deleteProject: (projectId: string) => request<void>(`/projects/${projectId}`, { method: 'DELETE' }),
 
   listPages: async (projectId: string) =>
     (await request<{ items: { page: string }[] }>(`/projects/${projectId}/pages`)).items.map(({ page }) => page),
@@ -100,6 +102,8 @@ export const adminApi = {
 
   getProjectAnalytics: (projectId: string, period = '') =>
     request<ProjectAnalytics>(`/projects/${projectId}/analytics/total${period}`),
+  getScenarioAnalyticsTotal: (scenarioId: string, period = '') =>
+    request<ScenarioAnalytics>(`/scenarios/${scenarioId}/analytics/total${period}`),
   getScenarioAnalytics: (scenarioId: string, period = '') =>
     request<DetailedScenarioAnalytics>(`/scenarios/${scenarioId}/analytics/detailed${period}`),
 };

@@ -47,4 +47,31 @@ describe('adminApi', () => {
       headers: { 'content-type': 'application/json' },
     });
   });
+
+  it('sends delete request for project removal', async () => {
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(null, { status: 204 }));
+
+    await adminApi.deleteProject('project-1');
+
+    expect(fetchMock).toHaveBeenCalledWith('/api/backend/projects/project-1', {
+      method: 'DELETE',
+      headers: {},
+    });
+  });
+
+  it('uses total analytics endpoint with period query for scenario summary', async () => {
+    const fetchMock = vi
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValue(new Response(JSON.stringify({ scenario_id: 'scenario-1' }), { status: 200 }));
+
+    await adminApi.getScenarioAnalyticsTotal(
+      'scenario-1',
+      '?from=2026-08-01T00%3A00%3A00.000Z&to=2026-08-08T00%3A00%3A00.000Z',
+    );
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/backend/scenarios/scenario-1/analytics/total?from=2026-08-01T00%3A00%3A00.000Z&to=2026-08-08T00%3A00%3A00.000Z',
+      { headers: {} },
+    );
+  });
 });
