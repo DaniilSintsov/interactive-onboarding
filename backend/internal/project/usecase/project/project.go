@@ -25,7 +25,7 @@ type (
 	}
 
 	elementRepository interface {
-		ListByProjectID(ctx context.Context, projectID uuid.UUID) ([]entity.Element, error)
+		ListByProjectID(ctx context.Context, projectID uuid.UUID, page *string) ([]entity.Element, error)
 	}
 
 	projectKeyGenerator interface {
@@ -112,6 +112,7 @@ func (service *projectService) Create(
 					Key:         element.Key,
 					Label:       element.Label,
 					Description: element.Description,
+					Page:        element.Page,
 				})
 				if createElementErr != nil {
 					return service.wrapCreateError(createElementErr, params.Name)
@@ -188,7 +189,7 @@ func (service *projectService) GetByID(
 			return service.wrapGetByIDError(err, projectID)
 		}
 
-		elements, err := service.elementRepository.ListByProjectID(ctx, project.ID)
+		elements, err := service.elementRepository.ListByProjectID(ctx, project.ID, nil)
 		if err != nil {
 			return service.wrapGetByIDError(err, projectID)
 		}
@@ -236,7 +237,7 @@ func (service *projectService) Update(
 			return service.wrapUpdateError(err, projectID, name)
 		}
 
-		elements, err := service.elementRepository.ListByProjectID(ctx, updatedProject.ID)
+		elements, err := service.elementRepository.ListByProjectID(ctx, updatedProject.ID, nil)
 		if err != nil {
 			return service.wrapUpdateError(err, projectID, name)
 		}

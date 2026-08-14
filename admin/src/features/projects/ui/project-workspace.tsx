@@ -1,8 +1,8 @@
 'use client';
 
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useQuery } from '@tanstack/react-query';
-import { Alert, App, Button, Card, Skeleton, Tabs } from 'antd';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { Alert, App, Button, Card, Popconfirm, Skeleton, Space, Tabs } from 'antd';
 import { adminApi } from '@/shared/api/admin-api';
 import { ElementsTab } from '@/features/elements/ui/elements-tab';
 import { ScenariosTab } from '@/features/scenarios/ui/scenarios-tab';
@@ -12,11 +12,21 @@ const tabKeys = new Set(['scenarios', 'elements', 'analytics']);
 
 export function ProjectWorkspace({ projectId }: { projectId: string }) {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const searchParams = useSearchParams();
   const { message } = App.useApp();
   const project = useQuery({
     queryKey: ['project', projectId],
     queryFn: () => adminApi.getProject(projectId),
+  });
+  const deleteProject = useMutation({
+    mutationFn: () => adminApi.deleteProject(projectId),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['projects'] });
+      message.success('Проект удалён');
+      router.replace('/projects');
+    },
+    onError: (error) => message.error(error.message),
   });
   const requestedTab = searchParams.get('tab') || 'scenarios';
   const activeTab = tabKeys.has(requestedTab) ? requestedTab : 'scenarios';
@@ -44,7 +54,19 @@ export function ProjectWorkspace({ projectId }: { projectId: string }) {
           <h1>{projectData.name}</h1>
           <p>Сценарии, карта элементов и результат прохождений.</p>
         </div>
-        <Button href="/projects">← Все проекты</Button>
+        <Space wrap>
+          <Button href="/projects">← Все проекты</Button>
+          <Popconfirm
+            title="Удалить проект?"
+            description="Проект исчезнет из админки и Runtime. Сценарии, элементы и аналитика сохранятся в истории."
+            okText="Удалить"
+            cancelText="Отмена"
+            okButtonProps={{ danger: true, loading: deleteProject.isPending }}
+            onConfirm={() => deleteProject.mutateAsync()}
+          >
+            <Button danger loading={deleteProject.isPending}>Удалить проект</Button>
+          </Popconfirm>
+        </Space>
       </header>
 
       <div className="project-key-panel">

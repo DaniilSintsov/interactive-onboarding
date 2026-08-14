@@ -61,6 +61,12 @@ func mapError(err error) httpserver.ErrorMapping {
 	case errors.Is(err, projecterrs.ErrElementDescriptionTooLong):
 		return httpserver.NewValidationErrorMapping("element_description_too_long", "element description is too long", "description")
 
+	case errors.Is(err, projecterrs.ErrElementPageRequired):
+		return httpserver.NewValidationErrorMapping("element_page_required", "element page is required", "page")
+
+	case errors.Is(err, projecterrs.ErrElementPageTooLong):
+		return httpserver.NewValidationErrorMapping("element_page_too_long", "element page is too long", "page")
+
 	case errors.Is(err, projecterrs.ErrEmptyElementUpdateParams):
 		return httpserver.NewErrorMapping(http.StatusUnprocessableEntity, "empty_update", "at least one field must be provided", false)
 

@@ -6,6 +6,7 @@ import type {
   ProjectList,
   ProjectWithElements,
   Scenario,
+  ScenarioAnalytics,
   ScenarioInput,
   ScenarioList,
   ScenarioTestToken,
@@ -52,9 +53,15 @@ export const adminApi = {
       method: 'POST',
       body: json({ name, elements: [] }),
     }),
+  deleteProject: (projectId: string) => request<void>(`/projects/${projectId}`, { method: 'DELETE' }),
 
-  listElements: (projectId: string) => request<Element[]>(`/projects/${projectId}/elements`),
-  createElement: (projectId: string, input: ElementInput) =>
+  listPages: async (projectId: string) =>
+    (await request<{ items: { page: string }[] }>(`/projects/${projectId}/pages`)).items.map(({ page }) => page),
+  listElements: (projectId: string, pagePath?: string) =>
+    request<Element[]>(
+      `/projects/${projectId}/elements${pagePath ? `?page=${encodeURIComponent(pagePath)}` : ''}`,
+    ),
+  createElement: (projectId: string, input: ElementInput & { page: string }) =>
     request<Element>(`/projects/${projectId}/elements`, { method: 'POST', body: json(input) }),
   updateElement: (projectId: string, elementId: string, input: ElementInput) =>
     request<Element>(`/projects/${projectId}/elements/${elementId}`, {
@@ -95,6 +102,8 @@ export const adminApi = {
 
   getProjectAnalytics: (projectId: string, period = '') =>
     request<ProjectAnalytics>(`/projects/${projectId}/analytics/total${period}`),
+  getScenarioAnalyticsTotal: (scenarioId: string, period = '') =>
+    request<ScenarioAnalytics>(`/scenarios/${scenarioId}/analytics/total${period}`),
   getScenarioAnalytics: (scenarioId: string, period = '') =>
     request<DetailedScenarioAnalytics>(`/scenarios/${scenarioId}/analytics/detailed${period}`),
 };

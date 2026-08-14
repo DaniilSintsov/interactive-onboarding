@@ -18,6 +18,7 @@ export type Element = {
   project_id: string;
   key: string;
   label: string;
+  page: string;
   description: string;
   created_at: string;
   updated_at: string;
@@ -97,6 +98,16 @@ export type ProjectAnalytics = {
   skip_rate: number;
 };
 
+export type ScenarioAnalytics = {
+  scenario_id: string;
+  started: number;
+  completed: number;
+  skipped: number;
+  completion_rate: number;
+  skip_rate: number;
+  average_completion_time_seconds: number;
+};
+
 export type StepAnalytics = {
   step_id: string;
   position: number;
@@ -109,14 +120,7 @@ export type StepAnalytics = {
   drop_off_rate: number;
 };
 
-export type DetailedScenarioAnalytics = {
-  scenario_id: string;
-  started: number;
-  completed: number;
-  skipped: number;
-  completion_rate: number;
-  skip_rate: number;
-  average_completion_time_seconds: number;
+export type DetailedScenarioAnalytics = ScenarioAnalytics & {
   steps: StepAnalytics[];
 };
 

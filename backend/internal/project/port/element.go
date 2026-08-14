@@ -13,6 +13,7 @@ type CreateElementParams struct {
 	Key         string
 	Label       string
 	Description string
+	Page        string
 }
 
 type UpdateElementParams struct {
@@ -41,7 +42,7 @@ func (params *UpdateElementParams) Validate() error {
 	if params.Key == nil && params.Label == nil && params.Description == nil {
 		return errs.ErrEmptyElementUpdateParams
 	}
-	return entity.CheckElementFields(
+	return entity.CheckElementContent(
 		getStringFromPtr(params.Key),
 		getStringFromPtr(params.Label),
 		getStringFromPtr(params.Description),

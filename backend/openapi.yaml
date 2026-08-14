@@ -165,6 +165,33 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerError'
 
+  /api/v1/projects/{projectId}/pages:
+    parameters:
+      - $ref: '#/components/parameters/ProjectId'
+    get:
+      tags:
+        - Projects
+      operationId: listProjectPages
+      summary: Получить страницы проекта с активными элементами
+      security:
+        - AdminBearer: []
+      responses:
+        '200':
+          description: Уникальные страницы активных элементов проекта
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectPagesResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+      description: Возвращает уникальные страницы, которым принадлежит хотя бы один неудалённый элемент проекта.
+
   # ============================================================================
   # Elements
   # ============================================================================
@@ -178,6 +205,15 @@ paths:
       summary: Получить полный список элементов проекта
       security:
         - AdminBearer: []
+      parameters:
+        - name: page
+          in: query
+          required: false
+          description: Если указан, возвращаются только активные элементы этой страницы.
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 2048
       responses:
         '200':
           description: Список элементов проекта
@@ -193,10 +229,12 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '404':
           $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/ValidationError'
         '500':
           $ref: '#/components/responses/InternalServerError'
-      description: Возвращает все элементы проекта одним массивом без пагинации. Список используется при выборе целевого
-        элемента для шага сценария.
+      description: Возвращает все активные элементы проекта одним массивом без пагинации или только элементы страницы из
+        query-параметра page. Список используется при выборе целевого элемента для шага сценария.
     post:
       tags:
         - Elements
@@ -1168,6 +1206,7 @@ components:
           type: string
           minLength: 1
           maxLength: 2048
+          description: Страница запуска сценария. Последующие шаги могут ссылаться на элементы других страниц.
           example: /advertisements/create
     UpdateScenarioRequest:
       type: object
@@ -1722,6 +1761,7 @@ components:
         - key
         - label
         - description
+        - page
         - created_at
         - updated_at
       properties:
@@ -1749,6 +1789,11 @@ components:
           maxLength: 2000
           default: ''
           description: Необязательное описание назначения элемента.
+        page:
+          type: string
+          minLength: 1
+          maxLength: 2048
+          description: Страница, которой принадлежит элемент.
         created_at:
           type: string
           format: date-time
@@ -1760,6 +1805,7 @@ components:
       required:
         - key
         - label
+        - page
       additionalProperties: false
       properties:
         key:
@@ -1778,6 +1824,29 @@ components:
           type: string
           maxLength: 2000
           default: ''
+        page:
+          type: string
+          minLength: 1
+          maxLength: 2048
+          description: Страница, которой принадлежит элемент.
+    ProjectPage:
+      type: object
+      required:
+        - page
+      properties:
+        page:
+          type: string
+          minLength: 1
+          maxLength: 2048
+    ProjectPagesResponse:
+      type: object
+      required:
+        - items
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProjectPage'
     ProjectWithElements:
       allOf:
         - $ref: '#/components/schemas/Project'
@@ -1796,6 +1865,7 @@ components:
         - key
         - label
         - description
+        - page
       properties:
         id:
           type: string
@@ -1805,6 +1875,8 @@ components:
         label:
           type: string
         description:
+          type: string
+        page:
           type: string
     UpdateElementRequest:
       type: object
