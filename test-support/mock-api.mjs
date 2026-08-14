@@ -7,20 +7,21 @@ const projectId = "11111111-1111-4111-8111-111111111111";
 const scenarioId = "22222222-2222-4222-8222-222222222222";
 
 const elementDefinitions = [
-  ["category-hobby", "Категория «Хобби и отдых»"],
-  ["listing-title", "Название объявления"],
-  ["subcategory-ebooks", "Подкатегория «Электронные книги»"],
-  ["listing-photo", "Фотография товара"],
-  ["listing-description", "Описание объявления"],
-  ["listing-price", "Цена объявления"],
-  ["publish-listing", "Кнопка «Разместить»"],
+  ["category-hobby", "Категория «Хобби и отдых»", "/add-item/category"],
+  ["listing-title", "Название объявления", "/add-item/title"],
+  ["subcategory-ebooks", "Подкатегория «Электронные книги»", "/add-item/title"],
+  ["listing-photo", "Фотография товара", "/add-item/details"],
+  ["listing-description", "Описание объявления", "/add-item/details"],
+  ["listing-price", "Цена объявления", "/add-item/details"],
+  ["publish-listing", "Кнопка «Разместить»", "/add-item/details"],
 ];
 
-const elements = elementDefinitions.map(([key, label], index) => ({
+const elements = elementDefinitions.map(([key, label, page], index) => ({
   id: `33333333-3333-4333-8333-33333333333${index}`,
   project_id: projectId,
   key,
   label,
+  page,
   description: "",
   created_at: now,
   updated_at: now,
@@ -166,7 +167,12 @@ createServer(async (request, response) => {
     return;
   }
   if (request.method === "GET" && pathname === `/api/v1/projects/${projectId}/elements`) {
-    send(response, 200, elements);
+    const page = url.searchParams.get("page");
+    send(response, 200, page ? elements.filter((element) => element.page === page) : elements);
+    return;
+  }
+  if (request.method === "GET" && pathname === `/api/v1/projects/${projectId}/pages`) {
+    send(response, 200, { items: [...new Set(elements.map((element) => element.page))].map((page) => ({ page })) });
     return;
   }
   if (request.method === "GET" && pathname === `/api/v1/projects/${projectId}/scenarios`) {

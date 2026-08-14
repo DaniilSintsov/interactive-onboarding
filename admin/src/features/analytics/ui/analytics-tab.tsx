@@ -3,11 +3,17 @@
 import { useState } from 'react';
 import type { Dayjs } from 'dayjs';
 import { useQuery } from '@tanstack/react-query';
-import { Alert, App, Button, Card, DatePicker, Select, Skeleton, Statistic, Table } from 'antd';
+import { Alert, App, Button, Card, DatePicker, Empty, Select, Skeleton, Statistic, Table } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import { adminApi, downloadReport } from '@/shared/api/admin-api';
-import type { StepAnalytics } from '@/shared/api/types';
+import type { ScenarioAnalytics, ScenarioSummary, StepAnalytics } from '@/shared/api/types';
 import { formatPercent, periodQuery } from '@/shared/lib/format';
+import { ScenarioStatus } from '@/features/scenarios/ui/scenario-status';
+
+type ScenarioAnalyticsRow = {
+  scenario: ScenarioSummary;
+  analytics: ScenarioAnalytics;
+};
 
 export function AnalyticsTab({ projectId }: { projectId: string }) {
   const [scenarioChoice, setScenarioChoice] = useState('');
@@ -19,10 +25,23 @@ export function AnalyticsTab({ projectId }: { projectId: string }) {
     queryKey: ['scenarios', projectId],
     queryFn: () => adminApi.listScenarios(projectId),
   });
-  const selectedScenarioId = scenarioChoice || scenarios.data?.items[0]?.id || '';
+  const scenarioItems = scenarios.data?.items || [];
+  const selectedScenarioId = scenarioChoice || scenarioItems[0]?.id || '';
   const projectAnalytics = useQuery({
     queryKey: ['project-analytics', projectId, period],
     queryFn: () => adminApi.getProjectAnalytics(projectId, period),
+  });
+  const allScenarioAnalytics = useQuery({
+    queryKey: ['scenario-analytics-all', projectId, period, scenarioItems.map(({ id }) => id)],
+    queryFn: async () =>
+      // ponytail: one request per scenario; add bulk project analytics endpoint if scenario count becomes real bottleneck.
+      Promise.all(
+        scenarioItems.map(async (scenario) => ({
+          scenario,
+          analytics: await adminApi.getScenarioAnalyticsTotal(scenario.id, period),
+        })),
+      ),
+    enabled: scenarioItems.length > 0,
   });
   const scenarioAnalytics = useQuery({
     queryKey: ['scenario-analytics', selectedScenarioId, period],
@@ -51,6 +70,41 @@ export function AnalyticsTab({ projectId }: { projectId: string }) {
     { title: 'Выполнение', dataIndex: 'completion_rate', key: 'completion', render: formatPercent },
     { title: 'Отвал шага', dataIndex: 'drop_off_rate', key: 'dropoff', render: formatPercent },
   ];
+  const scenarioColumns: ColumnsType<ScenarioAnalyticsRow> = [
+    {
+      title: 'Сценарий',
+      key: 'name',
+      render: (_, row) => (
+        <div>
+          <b>{row.scenario.name}</b>
+          <div className="muted"><code>{row.scenario.page_pattern}</code></div>
+        </div>
+      ),
+    },
+    {
+      title: 'Статус',
+      key: 'status',
+      width: 140,
+      render: (_, row) => <ScenarioStatus status={row.scenario.status} />,
+    },
+    { title: 'Стартов', dataIndex: ['analytics', 'started'], key: 'started', width: 110 },
+    { title: 'Завершено', dataIndex: ['analytics', 'completed'], key: 'completed', width: 120 },
+    { title: 'Пропущено', dataIndex: ['analytics', 'skipped'], key: 'skipped', width: 120 },
+    {
+      title: 'Выполнение',
+      dataIndex: ['analytics', 'completion_rate'],
+      key: 'completion_rate',
+      width: 130,
+      render: formatPercent,
+    },
+    {
+      title: 'Среднее время',
+      dataIndex: ['analytics', 'average_completion_time_seconds'],
+      key: 'average_completion_time_seconds',
+      width: 140,
+      render: (value: number) => `${Math.round(value)} сек.`,
+    },
+  ];
 
   return (
     <section>
@@ -75,7 +129,25 @@ export function AnalyticsTab({ projectId }: { projectId: string }) {
         </div>
       ) : null}
 
-      <Card className="content-card" title="Прохождение сценария" style={{ marginTop: 18 }}>
+      <Card className="content-card" title="Все сценарии проекта" style={{ marginTop: 18 }}>
+        {scenarios.isError ? <Alert type="error" showIcon message={scenarios.error.message} /> : null}
+        {allScenarioAnalytics.isError ? (
+          <Alert type="error" showIcon message={allScenarioAnalytics.error.message} />
+        ) : null}
+        {scenarios.isPending || allScenarioAnalytics.isPending ? <Skeleton active /> : null}
+        {!scenarioItems.length && !scenarios.isPending ? <Empty description="Сценариев пока нет" /> : null}
+        {allScenarioAnalytics.data?.length ? (
+          <Table<ScenarioAnalyticsRow>
+            rowKey={(row) => row.scenario.id}
+            columns={scenarioColumns}
+            dataSource={allScenarioAnalytics.data}
+            pagination={false}
+            scroll={{ x: 980 }}
+          />
+        ) : null}
+      </Card>
+
+      <Card className="content-card" title="Детали выбранного сценария" style={{ marginTop: 18 }}>
         <div className="toolbar">
           <Select
             className="analytics-scenario-picker"

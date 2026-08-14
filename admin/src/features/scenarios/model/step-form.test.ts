@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { getStepCatalogWarnings, initialStepValues, selectPagePath, toStepInput } from './step-form';
+import {
+  firstElementIdForPage,
+  initialStepValues,
+  isElementMissingFromPage,
+  toStepInput,
+} from './step-form';
 
 const base = {
   element_id: 'element-id',
@@ -28,20 +33,6 @@ describe('toStepInput', () => {
   });
 });
 
-describe('selectPagePath', () => {
-  it('keeps a matching route from catalog', () => {
-    expect(selectPagePath('/add-item/details', ['/add-item/details', '/add-item/title'])).toBe('/add-item/details');
-  });
-
-  it('falls back to first catalog route when current path mismatches', () => {
-    expect(selectPagePath('/legacy', ['/add-item/details', '/add-item/title'])).toBe('/add-item/details');
-  });
-
-  it('keeps manual value when catalog has no routes', () => {
-    expect(selectPagePath('/legacy', [])).toBe('/legacy');
-  });
-});
-
 describe('initialStepValues', () => {
   it('keeps an empty legacy page_path for editing', () => {
     expect(
@@ -60,28 +51,29 @@ describe('initialStepValues', () => {
   });
 });
 
-describe('getStepCatalogWarnings', () => {
-  const step = {
-    id: 'step-id',
-    scenario_id: 'scenario-id',
-    element_id: 'element-id',
-    step_num: 2,
-    title: 'Шаг',
-    description: 'Описание',
-    frontend_data: { page_path: '/legacy', advance: { mode: 'manual' as const } },
-    created_at: '',
-    updated_at: '',
-  };
-
-  it('warns when element is no longer in catalog and has no routes', () => {
-    expect(getStepCatalogWarnings({ step, isAvailable: false, pagePaths: [] })).toEqual([
-      'Элемент больше не найден в CI-каталоге. Для новых шагов он недоступен.',
-    ]);
+describe('firstElementIdForPage', () => {
+  it('selects the first element of the new page', () => {
+    expect(
+      firstElementIdForPage(
+        [
+          { id: 'other-page', page: '/other' },
+          { id: 'first-match', page: ' /add-item/category ' },
+          { id: 'second-match', page: '/add-item/category' },
+        ],
+        '/add-item/category',
+      ),
+    ).toBe('first-match');
   });
 
-  it('warns when step route mismatches catalog', () => {
-    expect(getStepCatalogWarnings({ step, isAvailable: true, pagePaths: ['/add-item/details'] })).toEqual([
-      'Маршрут шага /legacy не совпадает с каталогом. В форме выбран /add-item/details.',
-    ]);
+  it('clears the selection when the page has no elements', () => {
+    expect(firstElementIdForPage([{ id: 'other-page', page: '/other' }], '/empty')).toBeUndefined();
+  });
+
+  it('treats the newly selected element as available', () => {
+    const pageElements = [{ id: 'first-match', page: '/add-item/category' }];
+    const selectedElementId = firstElementIdForPage(pageElements, '/add-item/category');
+
+    expect(isElementMissingFromPage(pageElements, selectedElementId)).toBe(false);
+    expect(isElementMissingFromPage(pageElements, 'saved-on-other-page')).toBe(true);
   });
 });
